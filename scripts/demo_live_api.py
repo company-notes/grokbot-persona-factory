@@ -49,13 +49,22 @@ def discover_base_url():
     account = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "")
     if not token or not account:
         raise RuntimeError("Provide PERSONA_BASE_URL or Cloudflare CI credentials")
-    api = f"https://api.cloudflare.com/client/v4/accounts/{account}/workers/subdomain"
+    worker_name = os.environ.get("PERSONA_WORKER_NAME", "grokbot-persona-factory")
+    api = f"https://api.cloudflare.com/client/v4/accounts/{account}/workers/domains"
     raw, _, _ = json_request(api, token=token)
     result = json.loads(raw)
-    if not result.get("success") or not result.get("result", {}).get("subdomain"):
-        raise RuntimeError("Cannot resolve account Workers subdomain via Cloudflare API")
-    worker_name = os.environ.get("PERSONA_WORKER_NAME", "grokbot-persona-factory")
-    return f"https://{worker_name}.{result['result']['subdomain']}.workers.dev"
+    if not result.get("success"):
+        raise RuntimeError("Cloudflare domain list request failed")
+    matching = [
+        item for item in result.get("result", [])
+        if item.get("service") == worker_name and item.get("enabled")
+    ]
+    if matching:
+        # Prefer the operator's own custom domain, not workers.dev
+        base = f"https://{matching[0]['hostname']}"
+        print("Found custom domain for Worker; using public application domain.")
+        return base
+    raise RuntimeError("No enabled Custom Domain for this Worker; provide PERSONA_BASE_URL as a workflow input.")
 
 
 def save(name, content):
