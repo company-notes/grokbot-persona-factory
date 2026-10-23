@@ -1,0 +1,4 @@
+// Optional deployment-local config. Copy to wrangler.production.jsonc (ignored by Git).
+// Start from the shared wrangler.jsonc and add your own routes/custom domain there.
+// Deploy with: npx wrangler deploy --config wrangler.production.jsonc
+// If you use Cloudflare Dashboard to bind a custom domain instead, you do not need this file.

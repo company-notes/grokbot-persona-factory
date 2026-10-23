@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Practical AI teammate and assistant persona builder.">
+  <title>Persona Forge — AI 人設產生器</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="appShell">
+    <aside class="rail">
+      <a class="brand" href="/" aria-label="Persona Forge">
+        <span class="brandMark">P<span>F</span></span>
+        <span class="brandText">Persona <b>Forge</b><small>AI PERSONA STUDIO</small></span>
+      </a>
+      <div class="railSection" data-i18n="nav.workspace">工作空間</div>
+      <div class="railItem active"><span>✦</span> <span data-i18n="nav.builder">人設建立器</span></div>
+      <div class="railDivider"></div>
+      <div class="railSection" data-i18n="nav.workflow">建立流程</div>
+      <div class="flowStep"><span class="flowCount">01</span><div><span data-i18n="nav.step1">選擇範本</span><small data-i18n="nav.step1Note">先決定角色用途</small></div></div>
+      <div class="flowStep"><span class="flowCount">02</span><div><span data-i18n="nav.step2">描述角色</span><small data-i18n="nav.step2Note">簡單開始，再逐步調整</small></div></div>
+      <div class="flowStep"><span class="flowCount">03</span><div><span data-i18n="nav.step3">預覽與匯出</span><small data-i18n="nav.step3Note">內容由你掌控</small></div></div>
+      <div class="railBottom"><span class="statusDot"></span><span data-i18n="nav.tagline">以人為本的 AI 人設</span><small>Persona Forge · v0.3</small></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <span class="breadcrumbs">Persona Forge <span>/</span> <span data-i18n="nav.builder">人設建立器</span></span>
+        <div class="localeSwitch">
+          <label for="localeSelect">Language</label>
+          <select id="localeSelect" aria-label="Language">
+            <option value="zh-hant">繁體中文</option>
+            <option value="zh-hans">简体中文</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+      </header>
+
+      <div class="mainInner">
+        <section class="hero">
+          <div class="eyebrow"><span class="eyebrowDot"></span><span data-i18n="hero.eyebrow">為實際 AI 工作與協作而設計</span></div>
+          <h1><span data-i18n="hero.title">建立有個性、</span> <em data-i18n="hero.highlight">也有判斷力的 AI 夥伴。</em></h1>
+          <p data-i18n="hero.description">從職責、做事方式到說話風格，替助理設定清楚的權限與界線。一句話就能開始，也能進一步客製並預覽編輯。</p>
+        </section>
+
+        <div class="workspaceGrid">
+          <div class="editorColumn">
+            <section class="panel">
+              <div class="panelTop"><span class="panelNo">01</span><div><h2 data-i18n="preset.title">選擇人設範本</h2><p data-i18n="preset.subtitle">不同用途，搭配不同的設定重點。</p></div></div>
+              <div id="presets" class="presetGrid" aria-label="Persona presets"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panelTop"><span class="panelNo">02</span><div><h2 data-i18n="form.title">描述這位角色</h2><p data-i18n="form.subtitle">只填你確定的部分；你指定的資料應被保留。</p></div></div>
+              <div class="modeTabs" role="group" aria-label="Form mode">
+                <button type="button" id="quickMode" class="modeTab active" aria-pressed="true" data-i18n="form.quick">快速建立</button>
+                <button type="button" id="advancedMode" class="modeTab" aria-pressed="false" data-i18n="form.advanced">進階設定</button>
+              </div>
+              <p id="formModeHint" class="modeHint" data-i18n="form.quickHint">一句話就能開始；想更精準再補細節。</p>
+              <form id="personaForm">
+                <div id="briefField" class="field"></div>
+                <div id="advancedFields" class="hidden"><div id="personaFields" class="fieldGrid"></div></div>
+                <div class="formActions"><button type="reset" id="resetForm" class="textButton" data-i18n="form.reset">清空欄位</button><span data-i18n="form.privacy">表單不會自動儲存。</span></div>
+              </form>
+            </section>
+          </div>
+
+          <aside class="resultColumn">
+            <section class="panel outputPanel">
+              <div class="panelTop"><span class="panelNo">03</span><div><h2 data-i18n="flow.title">選擇產生方式</h2><p data-i18n="flow.subtitle">可由本站 AI 生成，或交給自己的 Bot。</p></div></div>
+              <button class="methodOption active" data-method="worker" type="button" aria-pressed="true">
+                <span class="methodIcon">✦</span><span class="methodContent"><strong data-i18n="method.worker">產生人設草稿</strong><small data-i18n="method.workerNote">先預覽與修改，再下載 ZIP</small></span><span class="methodRadio"></span>
+              </button>
+              <button class="methodOption" data-method="prompt" type="button" aria-pressed="false">
+                <span class="methodIcon">⌘</span><span class="methodContent"><strong data-i18n="method.prompt">只產生 Prompt</strong><small data-i18n="method.promptNote">由 Grokbot 或自備 AI 產生</small></span><span class="methodRadio"></span>
+              </button>
+              <label class="toggleLine"><input id="includeAvatar" type="checkbox" checked><span class="switch"></span><span><span data-i18n="avatar.title">產生頭像</span><small data-i18n="avatar.note">可選擇的角色肖像</small></span></label>
+              <div id="avatarStylePanel" class="avatarStylePanel">
+                <label for="avatarStyle" class="apiLabel" data-i18n="avatar.styleLabel">頭像畫風</label>
+                <select id="avatarStyle">
+                  <option value="cartoon" data-i18n="avatar.style.cartoon">原創卡通</option>
+                  <option value="realistic" data-i18n="avatar.style.realistic">寫實人像</option>
+                  <option value="pencil" data-i18n="avatar.style.pencil">鉛筆素描</option>
+                  <option value="anime" data-i18n="avatar.style.anime">動畫風格</option>
+                  <option value="watercolor" data-i18n="avatar.style.watercolor">水彩畫</option>
+                  <option value="threeD" data-i18n="avatar.style.threeD">3D 卡通</option>
+                  <option value="pixel" data-i18n="avatar.style.pixel">像素風</option>
+                </select>
+              </div>
+              <div class="quotaBanner" id="quotaBanner" aria-live="polite">
+                <span id="quotaText" data-i18n="quota.loading">正在讀取今日免費額度…</span>
+                <div class="quotaMeter"><span id="quotaFill"></span></div>
+                <p id="quotaHint" data-i18n="quota.cost">純文字 1 點，含頭像共 3 點；每日 UTC 00:00 重置。</p>
+              </div>
+              <button id="mainAction" class="primaryButton" type="button"><span>✦</span> <span id="mainActionLabel" data-i18n="action.draft">產生人設草稿</span> <span class="arrow">→</span></button>
+              <p class="helperText" id="actionDescription" data-i18n="action.draftHelp">人設生成後可直接編輯 Markdown，再打包 ZIP。</p>
+              <div id="status" class="status" aria-live="polite"></div>
+            </section>
+
+            <section id="draftResult" class="panel promptResult hidden">
+              <div class="smallHeader"><h3 data-i18n="result.title">人設草稿</h3></div>
+              <p data-i18n="result.subtitle">直接修改 Markdown；要求改寫時，已填的設定會保持不變。</p>
+              <div class="modeTabs draftTabs" role="tablist" aria-label="Draft view">
+                <button id="draftEditTab" class="modeTab active" type="button" aria-selected="true" data-i18n="result.editTab">編輯 Markdown</button>
+                <button id="draftPreviewTab" class="modeTab" type="button" aria-selected="false" data-i18n="result.previewTab">預覽人設</button>
+              </div>
+              <textarea id="draftMarkdown" rows="16" aria-label="Generated Markdown persona"></textarea>
+              <div id="draftPreview" class="markdownPreview hidden" aria-label="Persona preview"></div>
+              <img id="draftAvatarPreview" class="avatarPreview hidden" alt="AI character avatar">
+              <div id="draftAvatarStatus" class="avatarStatus" aria-live="polite"></div>
+              <label for="draftAvatarUpload" class="apiLabel" data-i18n="result.uploadAvatar">自行附上頭像（選填）</label>
+              <input id="draftAvatarUpload" type="file" accept="image/jpeg,image/png,image/webp">
+              <label for="refineInstructions" class="apiLabel" data-i18n="result.refineLabel">希望 AI 再修改什麼？（選填）</label>
+              <textarea id="refineInstructions" rows="3" data-i18n-placeholder="result.refinePlaceholder" placeholder="例如：回報再簡短一點、主管判斷再明確一點。"></textarea>
+              <div class="draftActions">
+                <button id="refineDraft" type="button" class="secondaryButton" data-i18n="result.refine">局部改寫</button>
+                <button id="downloadDraft" type="button" class="secondaryButton solid" data-i18n="result.download">下載 ZIP</button>
+              </div>
+            </section>
+
+            <section id="promptResult" class="panel promptResult hidden">
+              <div class="smallHeader"><h3 data-i18n="prompt.title">給你的 AI 使用的 Prompt</h3><span class="tag" data-i18n="prompt.external">外部 AI 模式</span></div>
+              <p data-i18n="prompt.note">可直接複製給 Bot；API 會分開回傳 systemPrompt、userPrompt 與 avatarPrompt。</p>
+              <textarea id="promptOutput" rows="12" readonly aria-label="Generated prompts"></textarea>
+              <button id="copyPrompt" type="button" class="secondaryButton" data-i18n="prompt.copy">複製給 Grokbot</button>
+              <hr>
+              <h3 data-i18n="prompt.markdown">貼上生成的人設 Markdown</h3>
+              <textarea id="generatedMarkdown" rows="6" data-i18n-placeholder="prompt.markdownPlaceholder" placeholder="貼上 Grokbot 產出的完整人設 Markdown…"></textarea>
+              <label for="avatarUpload" class="apiLabel" data-i18n="prompt.avatar">上傳頭像（選填）</label>
+              <input id="avatarUpload" type="file" accept="image/jpeg,image/png,image/webp">
+              <button id="packageButton" type="button" class="secondaryButton solid" data-i18n="prompt.package">封裝為 ZIP</button>
+            </section>
+
+            <section class="noteBox"><span class="noteIcon">◈</span><div><b data-i18n="note.title">以工作為主，也保有人格</b><p data-i18n="note.body">個性、職務責任與實際執行權限應分開。生成內容預設不儲存於伺服器。</p></div></section>
+          </aside>
+        </div>
+        <footer>PERSONA FORGE <span>✧</span> <span data-i18n="footer.tagline">為 AI 員工、助理與人機協作而設計</span></footer>
+      </div>
+    </main>
+  </div>
+  <script type="module" src="/Application.js"></script>
+</body>
+</html>

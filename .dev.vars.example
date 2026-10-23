@@ -1,0 +1,4 @@
+# No token required for public use. Wrangler config supplies daily credits.
+# Optional PRIVATE mode only: set ENABLE_PUBLIC_GENERATION=false in wrangler.jsonc
+# and configure PERSONA_API_TOKEN as a Worker secret (not in website forms).
+# PERSONA_API_TOKEN=replace-with-long-private-service-token

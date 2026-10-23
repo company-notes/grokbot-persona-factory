@@ -1,0 +1,15 @@
+node_modules/
+.dev.vars
+PERSONA_FACTORY_CREDENTIALS.md
+.wrangler/
+dist/
+coverage/
+test-results/
+*.log
+.DS_Store
+build/
+tests/browser-preview.png
+tests/sample.zip
+
+# Local production domain and account-specific overrides (never commit)
+wrangler.production.jsonc
