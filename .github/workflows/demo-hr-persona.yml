@@ -1,9 +1,5 @@
-name: HR Admin Persona API Demo v2
+name: HR Admin Persona API Demo
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/demo-hr-persona.yml'
   workflow_dispatch:
     inputs:
       api_base_url:
