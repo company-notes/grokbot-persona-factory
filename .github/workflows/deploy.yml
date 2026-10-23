@@ -25,7 +25,7 @@ jobs:
       - name: Install Chromium browser test dependencies
         run: |
           python -m pip install playwright
-          python -m playwright install --with-deps chromium
+          python -m playwright install chromium
       - name: Browser end-to-end test
         run: python tests/BrowserTest.py
       - name: Deploy Cloudflare Worker
