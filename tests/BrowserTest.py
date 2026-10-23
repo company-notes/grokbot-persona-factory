@@ -82,6 +82,7 @@ class PersonaBrowserTest(unittest.TestCase):
             page.locator("#includeAvatar").uncheck(force=True)
             page.locator("#mainAction").click()
             page.wait_for_function("document.querySelector('#draftMarkdown').value.includes('模擬人設')")
+            page.locator("#draftEditTab").click()
             page.locator("#draftMarkdown").fill("# 小晴\n\n草稿經過人工修改。")
             with page.expect_download() as downloadInfo:
                 page.locator("#downloadDraft").click()
