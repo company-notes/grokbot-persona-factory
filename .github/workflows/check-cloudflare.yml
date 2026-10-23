@@ -1,9 +1,5 @@
 name: Verify Cloudflare Credentials
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/check-cloudflare.yml'
   workflow_dispatch:
 
 jobs:
