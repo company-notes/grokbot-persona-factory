@@ -94,7 +94,7 @@ def main():
             raise RuntimeError(f"No avatar found in ZIP: {files}")
         avatar = archive.read("avatar.jpg")
         worker_md = archive.read("persona.md").decode("utf-8")
-    if not avatar.startswith(b"\\xff\\xd8\\xff"):
+    if not avatar.startswith(b"\xff\xd8\xff"):
         raise RuntimeError("Returned image is not a JPEG")
     print("Worker API generated a real avatar:", len(avatar), "bytes; draft chars:", len(worker_md))
 
