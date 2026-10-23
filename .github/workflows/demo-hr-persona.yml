@@ -1,4 +1,4 @@
-name: HR Admin Persona API Demo
+name: HR Admin Persona API Demo v2
 on:
   push:
     branches: [main]
