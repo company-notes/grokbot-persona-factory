@@ -20,7 +20,7 @@ export class AvatarPromptComposer {
       this.styles.describe(style, "en"),
       "One person only; head-and-shoulders portrait, exactly one face, centered square composition, clean natural background. Respect the same individual described in the Markdown.",
       ...(style === "realistic" ? [
-        "Photorealistic professional headshot, real human skin and age-appropriate facial anatomy; natural candid expression, not a synthetic stock-photo face.",
+        "Photorealistic corporate headshot, real human skin and age-appropriate facial anatomy; natural candid expression, not a synthetic stock-photo face.",
         "No other people. No illustration. No anime. No fantasy costume.",
         "No text, lettering, logo, watermark, or stamp.",
       ] : []),
