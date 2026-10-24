@@ -33,9 +33,13 @@ class FakeAI {
     const markdown = "# 小晴\\n\\n## 核心定位\\n總經理特助，重視職責和溝通。";
     if (input?.messages?.[0]?.content?.includes("MANDATORY API TRANSPORT FORMAT OVERRIDE")) {
       const user = input.messages[1].content;
-      const gender = user.includes("Gender / 性別：male") ? "male" :
-        user.includes("Gender / 性別：nonbinary") ? "nonbinary" : "female";
-      const age = user.split("Age / 年齡：")[1]?.split(String.fromCharCode(10))[0] || "33";
+      // The hosted MVP brief supplies explicit input values in simple
+      // field lines; the test fake must not depend on the old long SOP labels.
+      const selectedGender = user.match(/(?:^|\n)- gender:\s*(女性|男性|非二元)/)?.[1];
+      const gender = selectedGender === "男性" || user.includes("Gender / 性別：male") ? "male" :
+        selectedGender === "非二元" || user.includes("Gender / 性別：nonbinary") ? "nonbinary" : "female";
+      const age = user.match(/(?:^|\n)- age:\s*(\d{1,3})/)?.[1] ||
+        user.split("Age / 年齡：")[1]?.split(String.fromCharCode(10))[0] || "33";
       return { response: JSON.stringify({
         markdown,
         resolvedIdentity: {
@@ -1350,7 +1354,7 @@ test("hosted workplace MVP prioritizes user's distinctive personality over enter
   assert.match(call.input.messages[1].content,/ISTJ/);
   assert.match(call.input.messages[0].content,/NEVER change the requested job, personality, relationships, quirks/);
   assert.match(call.input.messages[1].content,/不要強制三種事件/);
-  assert.doesNotMatch(call.input.messages[1].content,/三種實際工作情境|逐項五欄|三層權限/);
+  assert.doesNotMatch(call.input.messages[1].content,/【公司 AI 員工輸出契約】|## 三種實際工作情境|三層權限/);
   assert.match(call.input.messages[1].content,/650～1100 字/);
   assert.match(call.input.messages[1].content,/\/think/);
   assert.doesNotMatch(call.input.messages[1].content,/\/no_think/);
