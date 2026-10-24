@@ -497,3 +497,78 @@ test("Workers AI respects the requested detail and workplace generation stabilit
     assert.match(ai.calls[0].input.messages[1].content, /Owner/);
   }
 });
+
+
+test("Yvonne regression: prompt uses operational contract, preserves given identity and rejects generic biography", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const persona = JSON.parse(await readFile(new URL("./fixtures/YvonneLin.zh-hant.json", import.meta.url), "utf8"));
+  const ai = new FakeAI();
+  const response = await new WorkerApplication().fetch(request("/api/v1/prompts", persona), env(ai));
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  const full = result.grokbotPrompt;
+  assert.ok(full.includes(result.systemPrompt));
+  assert.ok(full.includes(result.userPrompt));
+  assert.match(full, /林雅雯/);
+  assert.match(full, /Yvonne Lin/);
+  assert.match(full, /52/);
+  assert.match(full, /謹慎細心/);
+  assert.match(full, /幽默風趣/);
+  assert.match(full, /核心職責與可驗證成果/);
+  assert.match(full, /決策權限與責任分工/);
+  assert.match(full, /三種實際工作情境/);
+  assert.match(full, /例行任務/);
+  assert.match(full, /資訊不足／跨部門爭議/);
+  assert.match(full, /錯誤／風險事件/);
+  assert.match(full, /薪資核算/);
+  assert.match(full, /招募制度/);
+  assert.match(full, /提交前內部驗收/);
+  assert.doesNotMatch(full, /身分與定位、目標與職責、判斷與決策方式/);
+  assert.equal(ai.calls.length, 0);
+});
+
+test("HR-specific hints never leak into unrelated workplace personas or invented ages", async () => {
+  const app = new WorkerApplication();
+  const ai = new FakeAI();
+  await app.fetch(request("/api/v1/prompts", {
+    presetId: "workplace", locale: "zh-hant",
+    values: { brief: "人事行政主管", department: "人事行政部", role: "主管" },
+  }), env(ai));
+  const response = await app.fetch(request("/api/v1/prompts", {
+    presetId: "workplace", locale: "zh-hant",
+    values: { brief: "採購主管", department: "採購部", role: "主管" },
+  }), env(ai));
+  assert.equal(response.status, 200);
+  const prompt = (await response.json()).grokbotPrompt;
+  assert.doesNotMatch(prompt, /人事行政專業示例|薪資核算|招募制度|52 歲/);
+  assert.match(prompt, /三種實際工作情境/);
+  assert.equal(ai.calls.length, 0);
+});
+
+test("preset output contracts differ by role and locale; revisions preserve original structure", async () => {
+  const app = new WorkerApplication();
+  for (const [locale, marker] of [
+    ["en", /Three concrete working scenarios/],
+    ["zh-hant", /三種實際工作情境/],
+    ["zh-hans", /三种具体工作场景/],
+  ]) {
+    const result = await app.fetch(request("/api/v1/prompts", { ...samplePersona, locale }), env(new FakeAI()));
+    assert.equal(result.status, 200);
+    assert.match((await result.json()).userPrompt, marker);
+
+    const assistant = await app.fetch(request("/api/v1/prompts", {
+      presetId: "assistant", locale, values: { brief: "A useful scheduling assistant" },
+    }), env(new FakeAI()));
+    assert.equal(assistant.status, 200);
+    const assistantPrompt = (await assistant.json()).userPrompt;
+    assert.doesNotMatch(assistantPrompt, marker);
+    assert.doesNotMatch(assistantPrompt, /薪資核算|招募制度/);
+  }
+  const revised = await app.fetch(request("/api/v1/prompts", {
+    ...samplePersona, existingMarkdown: "# 小晴\\n原來設定", revisionInstructions: "只修改說話方式",
+  }), env(new FakeAI()));
+  assert.equal(revised.status, 200);
+  const text = (await revised.json()).userPrompt;
+  assert.match(text, /原來設定/);
+  assert.doesNotMatch(text, /三種實際工作情境/);
+});
