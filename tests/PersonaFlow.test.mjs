@@ -1176,7 +1176,7 @@ test("27-year-old portrait receives strong but natural young-adult age direction
   const ai=new FakeAI(),app=new WorkerApplication();
   const persona={
     presetId:"workplace",locale:"zh-hant",includeAvatar:true,avatarStyle:"realistic",
-    values:{name:"林曉薇",age:"27",gender:"女性",appearance:"大波浪捲髮，商務套裝",role:"總經理秘書"},
+    values:{brief:"27 歲女性總經理秘書，大波浪捲髮",name:"林曉薇",age:"27",gender:"女性",appearance:"大波浪捲髮，商務套裝",role:"總經理秘書"},
   };
   const res=await app.fetch(request("/api/v1/drafts",persona,true),env(ai));
   assert.equal(res.status,200);
@@ -1210,7 +1210,7 @@ test("older adult avatar never inherits twenties-only age casting",async()=>{
   const ai=new FakeAI(),app=new WorkerApplication();
   const res=await app.fetch(request("/api/v1/drafts",{
     presetId:"workplace",locale:"zh-hant",includeAvatar:true,avatarStyle:"realistic",
-    values:{name:"林雅雯",gender:"女性",age:"52",appearance:"自然面容，深棕髮",role:"人事行政主管"},
+    values:{brief:"52 歲的人事行政主管",name:"林雅雯",gender:"女性",age:"52",appearance:"自然面容，深棕髮",role:"人事行政主管"},
   },true),env(ai));
   assert.equal(res.status,200);
   const p=await avatarPromptFromCall(ai.calls.find(x=>x.model.includes("flux")));
@@ -1232,7 +1232,7 @@ test("visual reviewer flags clear apparent-age mismatch for character aged 27",a
   settings.AVATAR_VISUAL_REVIEW="true";
   const res=await new WorkerApplication().fetch(request("/api/v1/drafts",{
     presetId:"workplace",locale:"zh-hant",includeAvatar:true,avatarStyle:"realistic",
-    values:{name:"林曉薇",gender:"女性",age:"27",role:"秘書"},
+    values:{brief:"27 歲女秘書",name:"林曉薇",gender:"女性",age:"27",role:"秘書"},
   },true),settings);
   assert.equal(res.status,200);
   const questions=ai.calls.filter(x=>x.model.includes("moondream")).map(x=>x.input.question);
