@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — Avatar image prompt reliability
+
+- Keep localized English, Traditional Chinese and Simplified Chinese avatar prompts for Grokbot and API consumers.
+- Generate a separate English prompt for the image-model call, making solo portrait, selected visual style, no text and no extra faces explicit.
+- Add regression tests for realistic and pencil avatar styles; 27/27 tests pass in GitHub Actions.
+- GitHub Runner Cloudflare 1010 is a source-specific block, not evidence that the public API is universally unavailable.
+
+
 ## Unreleased — Avatar prompt reliability
 
 - Separated public localized avatar prompts (`/api/v1/prompts`) from the English image-model prompt sent to Workers AI, preserving the user's selected locale for the interface and Grokbot persona instructions.
