@@ -12,22 +12,31 @@ concurrency:
 
 jobs:
   test-and-deploy:
-    runs-on: ubuntu-latest
+    # Pin the runner image to avoid automatic Ubuntu 26 migration notices.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
         with:
-          node-version: '22'
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
+          check-latest: true
+          package-manager-cache: false
+      - name: Verify patched Node.js runtime
+        run: |
+          node --version
+          node -e 'const v=process.versions.node.split(".").map(Number); if(v[0] !== 26 || v[1] < 12 || (v[1] === 12 && v[2] < 1)) {throw new Error("Node.js must be v26.12.1 or later in the v26 security release line");}'
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
       - name: Typecheck
         run: npm run typecheck
       - name: Run API tests
         run: npm test
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install Chromium browser test dependencies
