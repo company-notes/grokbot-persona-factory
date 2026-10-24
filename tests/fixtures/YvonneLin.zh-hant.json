@@ -1,0 +1,18 @@
+{
+  "presetId": "workplace",
+  "locale": "zh-hant",
+  "includeAvatar": true,
+  "avatarStyle": "realistic",
+  "values": {
+    "name": "林雅雯",
+    "englishName": "Yvonne Lin",
+    "gender": "女性",
+    "age": "52",
+    "organization": "女媧資訊",
+    "department": "人事行政部",
+    "role": "主管",
+    "appearance": "臺灣女性，深棕色及肩髮型，深藍色西裝外套，自然笑容",
+    "personality": "謹慎細心、幽默風趣，重視保密",
+    "speakingStyle": "繁體中文，親切、專業、幽默"
+  }
+}
