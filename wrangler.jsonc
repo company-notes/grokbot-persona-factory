@@ -18,7 +18,8 @@
   },
   "vars": {
     "ENABLE_PUBLIC_GENERATION": "true",
-    "PUBLIC_DAILY_CREDITS": "150"
+    "PUBLIC_DAILY_CREDITS": "150",
+    "AVATAR_VISUAL_REVIEW": "true"
   },
   "observability": {
     "enabled": true

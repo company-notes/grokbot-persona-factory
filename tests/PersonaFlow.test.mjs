@@ -395,9 +395,9 @@ test("realistic avatar uses an English model prompt while Grokbot API stays loca
     assert.ok(imageCall, "Image model should be invoked");
     const modelPrompt = await avatarPromptFromCall(imageCall);
     assert.match(modelPrompt, /Photorealistic professional portrait/);
-    assert.match(modelPrompt, /Exactly ONE original character/);
-    assert.match(modelPrompt, /No extra people, no groups, no duplicate faces/);
-    assert.match(modelPrompt, /no text, no lettering/);
+    assert.match(modelPrompt, /Exactly ONE adult WOMAN/);
+    assert.match(modelPrompt, /one face, centered square composition/);
+    assert.match(modelPrompt, /No text, lettering, logo, watermark, or stamp/);
     assert.match(modelPrompt, /Gender presentation: female/);
     assert.match(modelPrompt, /Apparent age: 48/);
     assert.match(modelPrompt, /深棕色及肩頭髮/);
@@ -798,4 +798,142 @@ test("new origin field is optional in all presets and localized across all langu
       assert.match(field.label, expected);
     }
   }
+});
+
+test("photographic avatar and Markdown share exactly the same identity facts", async () => {
+  const app = new WorkerApplication();
+  const ai = new FakeAI();
+  const persona = {
+    presetId: "workplace", locale: "zh-hant", avatarStyle: "realistic",
+    includeAvatar: true,
+    values: {
+      name: "林語安", gender: "女性", age: "34", department: "客戶服務部",
+      role: "客服主管", appearance: "短髮，深藍色西裝外套",
+      personality: "細心、沉穩，語氣親切，不亂答應客戶",
+    },
+  };
+  const response = await app.fetch(request("/api/v1/prompts", persona), env(ai));
+  assert.equal(response.status, 200);
+  const prompts = await response.json();
+  assert.match(prompts.userPrompt, /文字人設與頭像共用的角色事實/);
+  assert.match(prompts.userPrompt, /Gender \/ 性別：女性/);
+  assert.match(prompts.userPrompt, /年齡：34/);
+  assert.match(prompts.userPrompt, /深藍色西裝外套/);
+  assert.match(prompts.userPrompt, /客服主管/);
+  assert.match(prompts.avatarPrompt, /只有一位成年女性，不可畫成男性/);
+  assert.match(prompts.avatarPrompt, /34 歲/);
+  assert.match(prompts.avatarPrompt, /客服主管/);
+  assert.match(prompts.grokbotPrompt, /只有一位成年女性/);
+  const res = await app.fetch(request("/api/v1/drafts", persona, true), env(ai));
+  assert.equal(res.status, 200);
+  const imagePrompt = await avatarPromptFromCall(ai.calls.find(c => c.model.includes("flux")));
+  assert.match(imagePrompt, /Exactly ONE adult WOMAN/);
+  assert.match(imagePrompt, /Never depict a man/);
+  assert.match(imagePrompt, /appears 34 years old/);
+  assert.match(imagePrompt, /客戶服務部/);
+  assert.match(imagePrompt, /short|短髮/);
+  assert.match(imagePrompt, /深藍色西裝外套/);
+  assert.match(imagePrompt, /calm and confident/);
+});
+
+test("gender from an explicit brief is reused in text and visual prompt without guessing from name", async () => {
+  const app = new WorkerApplication();
+  for (const [brief, expected, opposite] of [
+    ["34 歲女性客服主管，細心、沉穩", /Exactly ONE adult WOMAN/, /Exactly ONE adult MAN/],
+    ["40 歲男工程師，認真", /Exactly ONE adult MAN/, /Exactly ONE adult WOMAN/],
+    ["A 29 years old female project leader", /Exactly ONE adult WOMAN/, /Exactly ONE adult MAN/],
+  ]) {
+    const ai = new FakeAI();
+    const input = {presetId:"workplace", locale:"zh-hant", avatarStyle:"realistic", includeAvatar:true, values:{ brief }};
+    const prompt = await app.fetch(request("/api/v1/prompts", input), env(ai));
+    assert.equal(prompt.status, 200);
+    const data = await prompt.json();
+    assert.match(data.userPrompt, /文字人設與頭像共用的角色事實/);
+    assert.match(data.avatarPrompt, /外觀年齡約/);
+    const draft = await app.fetch(request("/api/v1/drafts", input, true), env(ai));
+    assert.equal(draft.status, 200);
+    const imagePrompt = await avatarPromptFromCall(ai.calls.find(c=>c.model.includes("flux")));
+    assert.match(imagePrompt, expected);
+    assert.doesNotMatch(imagePrompt, opposite);
+  }
+  const noGender = await app.fetch(request("/api/v1/prompts", {
+    presetId: "workplace", locale: "en", avatarStyle: "realistic", includeAvatar: true,
+    values: { name: "Alex", brief: "A careful manager" },
+  }), env(new FakeAI()));
+  const output = await noGender.json();
+  assert.match(output.userPrompt, /not specified \(do not guess\)/);
+  assert.match(output.avatarPrompt, /gender is not specified/i);
+});
+
+test("review flags an inconsistent woman portrait, regenerates it once and reports revision", async () => {
+  class ReviewAI extends FakeAI {
+    reports = ["FAIL", "PASS"];
+    async run(model, input) {
+      if (model.includes("moondream")) {
+        this.calls.push({ model, input });
+        return { answer: this.reports.shift() };
+      }
+      return super.run(model, input);
+    }
+  }
+  const ai = new ReviewAI();
+  const settings = env(ai);
+  settings.AVATAR_VISUAL_REVIEW = "true";
+  const resp = await new WorkerApplication().fetch(request("/api/v1/drafts", {
+    presetId:"workplace",locale:"zh-hant",includeAvatar:true,avatarStyle:"realistic",
+    values:{name:"林語安",gender:"女性",age:"34",department:"客服部",role:"主管"},
+  }, true), settings);
+  assert.equal(resp.status, 200);
+  const data = await resp.json();
+  assert.equal(data.avatarReviewStatus, "revised");
+  assert.equal(data.avatarMimeType, "image/jpeg");
+  assert.equal(ai.calls.filter(c=>c.model.includes("moondream")).length, 2);
+  assert.equal(ai.calls.filter(c=>c.model.includes("flux")).length, 2);
+  assert.match(ai.calls.find(c=>c.model.includes("moondream")).input.question, /one adult woman/);
+});
+
+test("repeated visual mismatch withholds the avatar rather than handing out a contradictory image", async () => {
+  class ReviewAI extends FakeAI {
+    async run(model, input) {
+      if (model.includes("moondream")) {
+        this.calls.push({ model, input });
+        return { answer:"FAIL" };
+      }
+      return super.run(model, input);
+    }
+  }
+  const ai=new ReviewAI(), settings=env(ai);
+  settings.AVATAR_VISUAL_REVIEW="true";
+  const resp=await new WorkerApplication().fetch(request("/api/v1/drafts", {
+    presetId:"workplace",locale:"zh-hant",includeAvatar:true,avatarStyle:"realistic",
+    values:{name:"林語安",gender:"女性",age:"34",department:"客服部",role:"主管"},
+  },true),settings);
+  assert.equal(resp.status,200);
+  const json=await resp.json();
+  assert.equal(json.avatarReviewStatus,"rejected");
+  assert.equal(json.avatarBase64,undefined);
+  assert.equal(ai.calls.filter(c=>c.model.includes("flux")).length,2);
+});
+
+test("vision review unavailable yields unverified rather than claiming an avatar passed", async () => {
+  class ReviewAI extends FakeAI {
+    async run(model, input) {
+      if (model.includes("moondream")) {
+        this.calls.push({ model, input });
+        throw Error("vision unavailable");
+      }
+      return super.run(model,input);
+    }
+  }
+  const ai=new ReviewAI(), settings=env(ai);
+  settings.AVATAR_VISUAL_REVIEW="true";
+  const res=await new WorkerApplication().fetch(request("/api/v1/drafts",{
+    presetId:"workplace",locale:"zh-hant",includeAvatar:true,avatarStyle:"realistic",
+    values:{name:"林語安",gender:"女性",age:"34",department:"客服部",role:"主管"}
+  },true),settings);
+  assert.equal(res.status,200);
+  const data=await res.json();
+  assert.equal(data.avatarReviewStatus,"unverified");
+  assert.ok(data.avatarBase64);
+  assert.equal(ai.calls.filter(c=>c.model.includes("flux")).length,1);
 });

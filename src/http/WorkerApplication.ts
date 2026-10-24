@@ -67,7 +67,7 @@ export class WorkerApplication {
       await this._reserveForPersona(env, persona);
       const draft = await this.service.draft(persona, env);
       const avatarBase64 = draft.avatarBytes ? this._base64(draft.avatarBytes) : undefined;
-      return this._json({ markdown: draft.markdown, avatarBase64, avatarMimeType: draft.avatarMimeType });
+      return this._json({ markdown: draft.markdown, avatarBase64, avatarMimeType: draft.avatarMimeType, avatarReviewStatus: draft.avatarReviewStatus });
     }
     if (path === "/api/v1/personas" && request.method === "POST") {
       await this.authorizer.authorize(request, env, path);

@@ -151,3 +151,19 @@ For avatars only, when no origin or clear regional/ethnic appearance is supplied
 - `en`: no geographic, national or ethnic default.
 
 Explicit `values.origin` and explicit appearance take priority. Nationality alone does not uniquely determine ethnic appearance; users can describe the intended look in `values.appearance`. The same logic is applied to the localized `avatarPrompt`, the Grokbot prompt's optional avatar section, and the Workers AI image-model prompt. Locale-based hints must not be copied into a person's verified biography. `POST /api/v1/prompts` still invokes no AI or site credits.
+
+## Shared visual identity and avatar consistency
+
+The text persona prompt, the localized `avatarPrompt`, the optional Grokbot avatar section and the Workers AI FLUX prompt use the same structured `PersonaVisualIdentity` compiled from user input. It includes explicitly supplied gender, age, appearance, regional background, role and manner; age/gender may also be extracted from an unambiguous short `values.brief`. Neither a person's name nor a locale is evidence of their gender or nationality.
+
+For photorealistic generation, mandatory subject gender (adult woman / adult man / nonbinary where supplied), age, role and visual mood are placed **first** in the actual image-model prompt. The site asks for gender if a realistic avatar is requested without enough input. This reduces the risk of an incongruent avatar but cannot guarantee model compliance.
+
+On the hosted Worker, `AVATAR_VISUAL_REVIEW=true` enables a separate Moondream visual assessment for realistic avatars. This costs additional Workers AI Neurons and may add latency; the site's usual credits are unchanged. A clearly contradictory image is regenerated **at most once**; if both assessments flag a mismatch, the incorrect avatar is withheld and the Markdown is still returned.
+
+The optional `POST /api/v1/drafts` response field `avatarReviewStatus` may be:
+- `checked`: automated visual review reported PASS (not a guarantee).
+- `revised`: the first image was flagged and the second passed review.
+- `unverified`: the visual service was unavailable or unable to decide; human review needed.
+- `rejected`: both attempts failed the consistency check; no avatar returned, Markdown remains available.
+
+Photo-checking does not claim to verify a person's actual nationality, identity, ethnicity or real gender identity from appearance. It checks whether a fictional portrait visibly follows supplied casting and composition instructions. For Grokbot/external image generation the website can supply a consistent avatar prompt, but cannot inspect images created outside the Worker.

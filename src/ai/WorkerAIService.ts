@@ -1,10 +1,13 @@
 import { AIUnavailableError } from "../Errors.js";
+import { PersonaVisualIdentity } from "../persona/PersonaVisualIdentity.js";
+import { AvatarVisualReviewer } from "../avatar/AvatarVisualReviewer.js";
 import type { AiBinding, PromptBundle, PersonaRequest } from "../Types.js";
 
 export interface GeneratedPersona {
   markdown: string;
   avatarBytes?: Uint8Array;
   avatarMimeType?: "image/jpeg" | "image/png";
+  avatarReviewStatus?: "checked" | "unverified" | "revised" | "rejected";
 }
 
 export class WorkerAIService {
@@ -15,7 +18,7 @@ export class WorkerAIService {
   static readonly primaryImageModel = "@cf/black-forest-labs/flux-2-klein-4b";
   static readonly fallbackImageModel = "@cf/black-forest-labs/flux-1-schnell";
 
-  async generate(prompt: PromptBundle, includeAvatar: boolean, imageModelPrompt: string, persona: PersonaRequest): Promise<GeneratedPersona> {
+  async generate(prompt: PromptBundle, includeAvatar: boolean, imageModelPrompt: string, persona: PersonaRequest, enableAvatarReview = false): Promise<GeneratedPersona> {
     const maxTokens = persona.detailLevel === "concise" ? 1900 : persona.detailLevel === "full" ? 4200 : 3400;
     const textInput = {
       messages: [
@@ -43,6 +46,40 @@ export class WorkerAIService {
     }
     if (!includeAvatar) return { markdown };
 
+    // The image and the persona text use the same canonical visual identity.
+    const identity = new PersonaVisualIdentity(persona);
+    let avatar = await this._generateAvatar(imageModelPrompt);
+    if (!enableAvatarReview || persona.avatarStyle !== "realistic") {
+      return { markdown, avatarBytes: avatar.bytes, avatarMimeType: avatar.mimeType };
+    }
+
+    const reviewer = new AvatarVisualReviewer(this.ai);
+    let outcome = await reviewer.review(avatar.bytes, avatar.mimeType, identity);
+    if (outcome === "mismatch") {
+      // Recreate only once; never return an image the reviewer has clearly flagged
+      // as conflicting with the character's visible identity. Bounded extra cost.
+      const revisedPrompt = [
+        identity.englishAnchor(),
+        "CORRECTION: the previous attempt did not match the character. Follow the subject's gender presentation, age, hair, outfit and solo composition strictly.",
+        imageModelPrompt,
+      ].join(" ").slice(0, 2000);
+      avatar = await this._generateAvatar(revisedPrompt);
+      outcome = await reviewer.review(avatar.bytes, avatar.mimeType, identity);
+      if (outcome === "mismatch") {
+        return { markdown, avatarReviewStatus: "rejected" };
+      }
+      return {
+        markdown, avatarBytes: avatar.bytes, avatarMimeType: avatar.mimeType,
+        avatarReviewStatus: outcome === "pass" ? "revised" : "unverified",
+      };
+    }
+    return {
+      markdown, avatarBytes: avatar.bytes, avatarMimeType: avatar.mimeType,
+      avatarReviewStatus: outcome === "pass" ? "checked" : "unverified",
+    };
+  }
+
+  private async _generateAvatar(imageModelPrompt: string): Promise<{ bytes: Uint8Array; mimeType: "image/jpeg" | "image/png" }> {
     let imageResponse: unknown;
     try {
       const form = new FormData();
@@ -51,10 +88,7 @@ export class WorkerAIService {
       form.append("height", "1024");
       const serialized = new Response(form);
       imageResponse = await this._invoke(WorkerAIService.primaryImageModel, {
-        multipart: {
-          body: serialized.body,
-          contentType: serialized.headers.get("content-type"),
-        },
+        multipart: { body: serialized.body, contentType: serialized.headers.get("content-type") },
       });
       if (!this._readImage(imageResponse)) imageResponse = undefined;
     } catch {
@@ -63,19 +97,18 @@ export class WorkerAIService {
     }
     if (!imageResponse) {
       imageResponse = await this._invoke(WorkerAIService.fallbackImageModel, {
-        prompt: imageModelPrompt,
-        steps: 6,
+        prompt: imageModelPrompt, steps: 6,
       });
     }
-    const avatarBytes = this._readImage(imageResponse);
-    if (!avatarBytes) throw new AIUnavailableError("The image model returned no image data");
-    const mimeType = avatarBytes[0] === 0xff && avatarBytes[1] === 0xd8 && avatarBytes[2] === 0xff
+    const bytes = this._readImage(imageResponse);
+    if (!bytes) throw new AIUnavailableError("The image model returned no image data");
+    const mimeType = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
       ? "image/jpeg"
-      : avatarBytes.length >= 8 && [137, 80, 78, 71, 13, 10, 26, 10].every((value, i) => avatarBytes[i] === value)
+      : bytes.length >= 8 && [137, 80, 78, 71, 13, 10, 26, 10].every((value, i) => bytes[i] === value)
         ? "image/png"
         : null;
     if (!mimeType) throw new AIUnavailableError("Unexpected avatar image format");
-    return { markdown, avatarBytes, avatarMimeType: mimeType };
+    return { bytes, mimeType };
   }
 
   private _readText(result: unknown): string {

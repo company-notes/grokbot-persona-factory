@@ -5,6 +5,7 @@ export interface Env {
   ENABLE_PUBLIC_GENERATION?: string;
   PERSONA_RATE_LIMIT: { limit(input: { key: string }): Promise<{ success: boolean }> };
   PUBLIC_DAILY_CREDITS?: string;
+  AVATAR_VISUAL_REVIEW?: string;
   QUOTA_LEDGER: { getByName(name: string): { fetch(input: string | Request, init?: RequestInit): Promise<Response> } };
 }
 

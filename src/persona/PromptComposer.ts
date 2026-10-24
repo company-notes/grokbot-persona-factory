@@ -1,6 +1,7 @@
 import type { PersonaRequest, PersonaPreset, PromptBundle } from "../Types.js";
 import { AvatarStyles } from "../avatar/AvatarStyles.js";
 import { AvatarRegionalContext } from "../avatar/AvatarRegionalContext.js";
+import { PersonaVisualIdentity } from "./PersonaVisualIdentity.js";
 import { PersonaQualityPolicy } from "./PersonaQualityPolicy.js";
 import { PersonaOutputContract } from "./PersonaOutputContract.js";
 import type { Locale } from "../i18n/Localization.js";
@@ -75,6 +76,7 @@ export class PromptComposer {
   compose(persona: PersonaRequest, preset: PersonaPreset): PromptBundle {
     const locale = persona.locale as Locale;
     const messages = copy[locale];
+    const identity = new PersonaVisualIdentity(persona);
     const details = preset.fields
       .filter((field) => field.id !== "brief" && persona.values[field.id])
       .map((field) => `- ${field.label}：${field.id === "gender"
@@ -94,6 +96,7 @@ export class PromptComposer {
       userSections.push(this.quality.guidance(persona, locale));
     } else {
       userSections.push(
+        identity.textAnchor(locale),
         this.quality.guidance(persona, locale),
         ...this.outputContract.instructions(persona, locale),
       );
@@ -101,17 +104,24 @@ export class PromptComposer {
 
     const style = this.styles.describe(this.styles.require(persona.avatarStyle), locale);
     const regionalHint = this.regional.guidance(persona).localized;
+    const genderLabel = ({
+      en: { female: "woman", male: "man", nonbinary: "nonbinary", unspecified: messages.unknown },
+      "zh-hant": { female: "女性", male: "男性", nonbinary: "非二元", unspecified: messages.unknown },
+      "zh-hans": { female: "女性", male: "男性", nonbinary: "非二元", unspecified: messages.unknown },
+    })[locale][identity.gender];
     const avatarPrompt = [
+      identity.localizedImageAnchor(locale),
       style,
       regionalHint,
       messages.avatar(
         displayName,
-        preset.fields.find((field) => field.id === "gender")?.optionLabels?.[persona.values.gender] ?? messages.unknown,
-        persona.values.age || messages.unknown,
-        persona.values.appearance || messages.unknown,
-        persona.values.personality || messages.unknown,
-      ).slice(0, 1300),
-    ].join(" ").slice(0, 2048);
+        genderLabel,
+        identity.age || messages.unknown,
+        identity.appearance || messages.unknown,
+        identity.personality || messages.unknown,
+      ).slice(0, 1050),
+      identity.role ? identity.textAnchor(locale) : "",
+    ].filter(Boolean).join(" ").slice(0, 2048);
     const grokbotIntro = {
       en: "Please create a complete, practical, evergreen AI assistant persona for Grokbot in English, formatted as Markdown. Respect every specified fact, keep personality separate from job responsibilities and authority, and include natural example responses. Here are the requirements:",
       "zh-hant": "請幫我為 Grokbot 建立一位 AI 助理的人設，使用繁體中文輸出可直接使用的完整 Markdown。保留我指定的資料，清楚區分人格、職責和權限，包含自然的說話範例。需求如下：",

@@ -16,6 +16,7 @@ class PersonaApplication {
     this.method = "worker";
     this.draftPersona = null;
     this.draftAvatar = null;
+    this.avatarReviewStatus = null;
     this.promptPersona = null;
     this.quota = null;
   }
@@ -147,6 +148,16 @@ class PersonaApplication {
     if (persona) {
       persona.avatarStyle = document.getElementById("avatarStyle").value;
       persona.detailLevel = document.getElementById("detailLevel").value;
+      // A photoreal face without any gender details can disagree with the
+      // persona text. Ask instead of guessing a gender from the name.
+      const brief = persona.values.brief || "";
+      const explicitInBrief = /女性|男性|女生|男生|女主管|男主管|女助理|男助理|女客服|男客服|\bfemale\b|\bmale\b|\bwoman\b|\bman\b/i.test(brief);
+      if (persona.includeAvatar && persona.avatarStyle === "realistic" &&
+          !persona.values.gender && !explicitInBrief) {
+        this._setFormMode("advanced");
+        this._status(this.i18n.text("status.avatarGenderNeeded"), true);
+        return null;
+      }
     }
     if (!persona) {
       this._status(this.i18n.text("status.required"), true);
@@ -167,6 +178,7 @@ class PersonaApplication {
       if (this.method === "worker") {
         const draft = await this.http.draft(persona);
         this.draftPersona = persona;
+        this.avatarReviewStatus = draft.avatarReviewStatus || null;
         this.draftAvatar = draft.avatarBase64 && draft.avatarMimeType
           ? { base64: draft.avatarBase64, mimeType: draft.avatarMimeType }
           : null;
@@ -329,7 +341,8 @@ class PersonaApplication {
       image.removeAttribute("src");
       image.classList.add("hidden");
     }
-    const key = this.draftAvatar ? "result.avatarReady" : "result.noAvatar";
+    const detailKeys = { checked: "result.avatarChecked", revised: "result.avatarRevised", unverified: "result.avatarUnverified", rejected: "result.avatarRejected" };
+    const key = detailKeys[this.avatarReviewStatus] || (this.draftAvatar ? "result.avatarReady" : "result.noAvatar");
     document.getElementById("draftAvatarStatus").textContent = this.i18n.text(key);
   }
 
