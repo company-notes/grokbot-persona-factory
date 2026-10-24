@@ -32,6 +32,11 @@ export class AvatarPromptComposer {
       "Exactly ONE original character. Solo head-and-shoulders portrait, one face, centered composition, square crop, clean background, natural expression, tasteful and nonsexualized.",
       "No extra people, no groups, no duplicate faces, no split panels, no text, no lettering, no typography, no captions, no brand logos, no watermarks.",
       details,
+      ...(style === "realistic" ? [
+        "Photorealistic corporate headshot.",
+        "No other people. No illustration. No anime. No fantasy costume.",
+        "No text, lettering, logo, watermark, or stamp.",
+      ] : []),
     ].filter(Boolean).join(" ").slice(0, 2000);
   }
 
