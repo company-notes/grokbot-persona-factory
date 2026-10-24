@@ -21,7 +21,7 @@ export class BoundedAIBinding implements AiBinding {
     const perCall = model.includes("moondream") ? 12_000
       : model.includes("flux") ? 48_000
         : model.includes("qwen") ? 38_000 : 35_000;
-    if (remaining < 1_000) throw new AITimeoutError("AI_TIME_BUDGET_EXHAUSTED");
+    if (remaining < (this.testLimits ? 1 : 1_000)) throw new AITimeoutError("AI_TIME_BUDGET_EXHAUSTED");
     const duration = Math.min(this.testLimits?.perCallMs ?? perCall, remaining);
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
