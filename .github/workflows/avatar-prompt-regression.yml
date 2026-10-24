@@ -1,4 +1,4 @@
-name: Avatar Prompt Regression
+name: Avatar Prompt and UTF-8 Regression
 on:
   push:
     branches: [main]
