@@ -660,3 +660,57 @@ test("workplace contract explicitly rejects unsupported personal traits and inve
   assert.match(prompt, /假設案例/);
   assert.equal(ai.calls.length, 0);
 });
+
+test("Yvonne prompt balances HR operational independence with policy authorization", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const payload = JSON.parse(await readFile(new URL("./fixtures/YvonneLin.zh-hant.json", import.meta.url), "utf8"));
+  const ai = new FakeAI();
+  const res = await new WorkerApplication().fetch(request("/api/v1/prompts", payload), env(ai));
+  assert.equal(res.status, 200);
+  const p = await res.json();
+  assert.ok(p.grokbotPrompt.includes(p.userPrompt));
+  assert.match(p.grokbotPrompt, /林雅雯/);
+  assert.match(p.grokbotPrompt, /52/);
+  assert.match(p.userPrompt, /薪資／獎金核算及覆核/);
+  assert.match(p.userPrompt, /勞健保與福利行政/);
+  assert.match(p.userPrompt, /到離職行政/);
+  assert.match(p.userPrompt, /覆核部屬成果/);
+  assert.match(p.userPrompt, /已核定制度下的薪資/);
+  assert.match(p.userPrompt, /謹慎不代表事事升級/);
+  assert.match(p.userPrompt, /假設案例／非公司現況/);
+  assert.match(p.userPrompt, /佔位符/);
+  assert.equal(ai.calls.length, 0);
+});
+
+test("non-HR managers receive autonomy and hypothetical-label standards but not HR duties", async () => {
+  const ai = new FakeAI();
+  const result = await new WorkerApplication().fetch(request("/api/v1/prompts", {
+    presetId: "workplace", locale: "zh-hant",
+    values: { name: "小明", department: "產品研發部", role: "研發主管" },
+    includeAvatar: false,
+  }), env(ai));
+  assert.equal(result.status, 200);
+  const p = (await result.json()).userPrompt;
+  assert.match(p, /自主完成的例行本業/);
+  assert.match(p, /假設案例／非公司現況/);
+  assert.doesNotMatch(p, /人事行政專業示例|薪資／獎金核算及覆核|勞健保與福利行政/);
+  assert.equal(ai.calls.length, 0);
+});
+
+test("autonomy and hypothetical reporting guidance stay localized in all workplace prompts", async () => {
+  const app = new WorkerApplication();
+  const prompts = [
+    ["en", /Hypothetical example \/ not company data/, /completed independently/],
+    ["zh-hant", /假設案例／非公司現況/, /自主完成/],
+    ["zh-hans", /假设案例／非公司现况/, /独立完成/],
+  ];
+  for (const [locale, examples, autonomy] of prompts) {
+    const ai = new FakeAI();
+    const result = await app.fetch(request("/api/v1/prompts", { ...samplePersona, locale }), env(ai));
+    assert.equal(result.status, 200);
+    const p = (await result.json()).userPrompt;
+    assert.match(p, examples);
+    assert.match(p, autonomy);
+    assert.equal(ai.calls.length, 0);
+  }
+});
