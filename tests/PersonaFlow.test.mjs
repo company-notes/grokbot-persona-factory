@@ -354,3 +354,54 @@ test("avatar style choice flows to model prompt in all languages", async () => {
   const invalid = await app.fetch(request("/api/v1/prompts", { ...samplePersona, avatarStyle: "fake" }), env(new FakeAI()));
   assert.equal(invalid.status, 400);
 });
+
+test("realistic avatar uses an English model prompt while Grokbot API stays localized", async () => {
+  const app = new WorkerApplication();
+  for (const [locale, localizedStyle] of [
+    ["zh-hant", /寫實專業人像攝影/],
+    ["zh-hans", /写实专业人像摄影/],
+    ["en", /Photorealistic professional portrait/],
+  ]) {
+    const persona = {
+      ...samplePersona, locale, avatarStyle: "realistic", includeAvatar: true,
+      values: {
+        ...samplePersona.values, gender: "女性", age: "48",
+        appearance: "深棕色及肩頭髮，深藍色西裝外套",
+      },
+    };
+    const testEnv = env(new FakeAI());
+
+    const api = await app.fetch(request("/api/v1/prompts", persona), testEnv);
+    assert.equal(api.status, 200);
+    const prompts = await api.json();
+    assert.match(prompts.avatarPrompt, localizedStyle);
+    assert.equal(testEnv.AI.calls.length, 0, "Prompt-only must never call AI");
+
+    const result = await app.fetch(request("/api/v1/drafts", persona, true), testEnv);
+    assert.equal(result.status, 200);
+    const imageCall = testEnv.AI.calls.find((call) => call.model.includes("flux"));
+    assert.ok(imageCall, "Image model should be invoked");
+    const modelPrompt = imageCall.input.prompt;
+    assert.match(modelPrompt, /Photorealistic professional portrait/);
+    assert.match(modelPrompt, /Exactly ONE original character/);
+    assert.match(modelPrompt, /No extra people, no groups, no duplicate faces/);
+    assert.match(modelPrompt, /no text, no lettering/);
+    assert.match(modelPrompt, /Gender presentation: female/);
+    assert.match(modelPrompt, /Apparent age: 48/);
+    assert.match(modelPrompt, /深棕色及肩頭髮/);
+    assert.doesNotMatch(modelPrompt, /\uFFFD/);
+  }
+});
+
+test("pencil image-model prompt stays in English without affecting returned Chinese prompt", async () => {
+  const app = new WorkerApplication();
+  const ai = new FakeAI();
+  const persona = { ...samplePersona, locale: "zh-hant", avatarStyle: "pencil", includeAvatar: true };
+  const api = await app.fetch(request("/api/v1/prompts", persona), env(ai));
+  assert.match((await api.json()).avatarPrompt, /鉛筆素描/);
+  const response = await app.fetch(request("/api/v1/drafts", persona, true), env(ai));
+  assert.equal(response.status, 200);
+  const modelPrompt = ai.calls.find((call) => call.model.includes("flux")).input.prompt;
+  assert.match(modelPrompt, /Expressive graphite pencil portrait sketch/);
+  assert.doesNotMatch(modelPrompt, /Photorealistic professional portrait/);
+});
