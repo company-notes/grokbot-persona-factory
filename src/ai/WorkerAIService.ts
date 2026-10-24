@@ -10,7 +10,7 @@ export interface GeneratedPersona {
 export class WorkerAIService {
   constructor(private readonly ai: AiBinding) {}
 
-  async generate(prompt: PromptBundle, includeAvatar: boolean): Promise<GeneratedPersona> {
+  async generate(prompt: PromptBundle, includeAvatar: boolean, imageModelPrompt: string): Promise<GeneratedPersona> {
     const textResponse = await this._invoke("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
       messages: [
         { role: "system", content: prompt.systemPrompt },
@@ -28,7 +28,7 @@ export class WorkerAIService {
     }
 
     const imageResponse = await this._invoke("@cf/black-forest-labs/flux-1-schnell", {
-      prompt: prompt.avatarPrompt,
+      prompt: imageModelPrompt,
       steps: 6,
     }) as { image?: string };
     if (!imageResponse.image) {
