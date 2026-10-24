@@ -1077,7 +1077,7 @@ test("a text model returning plain Markdown can recover its identity with an ext
     async run(model,input){
       if(model.includes("flux"))return super.run(model,input);
       this.calls.push({model,input});
-      if(input.messages?.[0]?.content?.startsWith("MANDATORY API TRANSPORT FORMAT OVERRIDE")){
+      if(input.messages?.[0]?.content?.startsWith("Return ONLY a small JSON identity object")){
         return {response:JSON.stringify({
           markdown:"# 新秘書\\n\\n女性，29 歲，專業幽默。",
           resolvedIdentity:{gender:"female",age:"29",role:"秘書",visualTone:"composed"}
@@ -1240,4 +1240,98 @@ test("visual reviewer flags clear apparent-age mismatch for character aged 27",a
   assert.match(questions[0],/expected apparent age 27/);
   assert.match(questions[0],/Do not mark PASS when the portrait CLEARLY depicts someone who looks substantially older/);
   assert.match(questions[0],/choose UNCERTAIN/);
+});
+
+test("Qwen3 compact identity header plus ordinary Markdown needs one text call, no giant JSON envelope", async()=>{
+  class HeaderAI extends FakeAI {
+    async run(model,input) {
+      if(model.includes("flux")) return super.run(model,input);
+      this.calls.push({model,input});
+      return {choices:[{finish_reason:"stop",message:{content:[
+        "<think>Reasoning should not enter final transport.</think>",
+        "<PERSONA_IDENTITY>",
+        JSON.stringify({name:"林小禾",gender:"female",age:"28",appearance:"深棕及肩髮",role:"秘書",visualTone:"calm"}),
+        "</PERSONA_IDENTITY>",
+        "# 林小禾\n\n28 歲女性秘書，做事仔細。",
+      ].join("\n")}}]};
+    }
+  }
+  const ai=new HeaderAI();
+  const response=await new WorkerApplication().fetch(request("/api/v1/drafts",{
+    presetId:"workplace",locale:"zh-hant",includeAvatar:true,avatarStyle:"realistic",
+    values:{brief:"大美女，28 歲女性秘書"}
+  },true),env(ai));
+  assert.equal(response.status,200);
+  const data=await response.json();
+  assert.equal(data.resolvedIdentity.age,"28");
+  assert.equal(data.resolvedIdentity.gender,"female");
+  assert.match(data.markdown,/^# 林小禾/);
+  assert.equal(ai.calls.filter(c=>!c.model.includes("flux")).length,1);
+  assert.match(ai.calls[0].input.messages[1].content,/\/no_think/);
+  assert.ok(ai.calls[0].input.messages[0].content.includes("<PERSONA_IDENTITY>"));
+});
+
+test("Markdown-only text fallback asks model for a short identity card, never to reprint Markdown", async()=>{
+  class MarkdownAndCardAI extends FakeAI {
+    async run(model,input) {
+      if(model.includes("flux")) return super.run(model,input);
+      this.calls.push({model,input});
+      if(input.max_tokens===420) return {response:JSON.stringify({
+        name:"小禾",gender:"female",age:"28",appearance:"及肩髮",role:"私人助理",visualTone:"warm"
+      })};
+      return {response:"# 小禾\n\n28 歲女性個人助理，細心溫和。"};
+    }
+  }
+  const ai=new MarkdownAndCardAI();
+  const response=await new WorkerApplication().fetch(request("/api/v1/drafts",{
+    presetId:"assistant",locale:"zh-hant",includeAvatar:true,avatarStyle:"realistic",
+    values:{brief:"小禾，28 歲女生，整理行程與信件"}
+  },true),env(ai));
+  assert.equal(response.status,200);
+  const data=await response.json();
+  assert.match(data.markdown,/28 歲女性個人助理/);
+  assert.equal(ai.calls.filter(c=>!c.model.includes("flux")).length,2);
+  assert.equal(ai.calls[1].input.max_tokens,420);
+  assert.ok(ai.calls[1].input.messages[0].content.includes("Do NOT repeat the Markdown"));
+});
+
+test("invalid primary response falls back to Gemma header without generating an unrelated avatar",async()=>{
+  class RecoverFromInvalidAI extends FakeAI {
+    async run(model,input){
+      if(model.includes("flux"))return super.run(model,input);
+      this.calls.push({model,input});
+      if(model.includes("qwen3"))return {response:"{ malformed and truncated"};
+      return {choices:[{message:{content:[
+        "<PERSONA_IDENTITY>",
+        JSON.stringify({gender:"female",age:"29",appearance:"大波浪捲",role:"秘書"}),
+        "</PERSONA_IDENTITY>",
+        "# 秘書\n\n29 歲女性，專業且幽默。"
+      ].join("\n")},finish_reason:"stop"}]};
+    }
+  }
+  const ai=new RecoverFromInvalidAI();
+  const response=await new WorkerApplication().fetch(request("/api/v1/drafts",{
+    presetId:"workplace",locale:"zh-hant",includeAvatar:true,avatarStyle:"realistic",
+    values:{brief:"大美女，專業的秘書"}
+  },true),env(ai));
+  assert.equal(response.status,200);
+  assert.equal((await response.json()).resolvedIdentity.age,"29");
+  assert.deepEqual(ai.calls.map(c=>c.model),[
+    "@cf/qwen/qwen3-30b-a3b-fp8",
+    "@cf/google/gemma-4-26b-a4b-it",
+    "@cf/black-forest-labs/flux-2-klein-4b"
+  ]);
+});
+
+test("text-only generation still produces Markdown without enforcing portrait identity transport",async()=>{
+  const ai=new FakeAI();
+  const response=await new WorkerApplication().fetch(request("/api/v1/drafts",{
+    presetId:"workplace",locale:"zh-hant",includeAvatar:false,
+    values:{brief:"負責整理行政資料的助理"}
+  },true),env(ai));
+  assert.equal(response.status,200);
+  const data=await response.json();
+  assert.match(data.markdown,/核心定位/);
+  assert.equal(ai.calls.length,1);
+  assert.doesNotMatch(ai.calls[0].input.messages[0].content,/MANDATORY API TRANSPORT FORMAT OVERRIDE/);
 });

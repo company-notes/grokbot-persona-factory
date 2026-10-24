@@ -241,3 +241,9 @@ claiming success for borderline age impressions. Apparent age is subjective;
 this reduces mismatches but is **not** a measured age classifier or a guarantee
 that every generated portrait looks exactly its written age. Review remains
 one extra AI call and at most one image retry.
+
+## Resilient Workers AI persona response transport
+
+The hosted text models now request a **small** `<PERSONA_IDENTITY>` JSON card first, followed by ordinary Markdown. This avoids wrapping an entire multilingual Markdown document inside a JSON string (a common source of invalid or truncated responses). Older full JSON envelopes still parse; if a model returns only Markdown, the service asks for a **short identity card only** rather than asking it to re-generate the entire Markdown. Only when the first model cannot provide a consistent character does it try the backup model. The primary Qwen3 request also includes `/no_think` for reduced thinking-token overhead in image-enabled requests.
+
+Cloudflare Workers observability already collects logs for this deployment. Each unsuccessful text attempt records just the model, stage (`model_call`, `parse`, `repair_identity_only`, `identity_validation`, `age_consistency`), completion reason and error type. **Do not log prompts, names, Markdown, identity cards or raw model responses.** These logs diagnose the difference between model outages, incomplete output, and validation conflicts. CI uses mocked AI outputs; full public model quality must still be checked from real Workers AI logs and a controlled live test.

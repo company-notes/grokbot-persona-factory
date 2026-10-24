@@ -22,62 +22,84 @@ export class PersonaTextGenerator {
       : prompt.systemPrompt;
     const user = withAvatar
       ? [prompt.userPrompt,
-        "Before finalizing, settle the fictional character identity from the complete user request. Return a single JSON object with the Markdown and the same resolvedIdentity."].join("\n\n")
+        "First output a short <PERSONA_IDENTITY> JSON card, then write the complete Markdown normally. Both must describe the SAME person."].join("\n\n")
       : prompt.userPrompt;
     for (const model of [PersonaTextGenerator.primaryModel, PersonaTextGenerator.fallbackModel]) {
+      let stage = "model_call";
+      let finishReason: string | undefined;
       try {
         const response = await this.ai.run(model, {
-          messages: [{role:"system",content:system},{role:"user",content:user}],
-          max_tokens:maxTokens,
-          temperature:persona.presetId === "workplace" ? 0.55 : 0.75,
-          ...(model === PersonaTextGenerator.fallbackModel ? {chat_template_kwargs:{enable_thinking:false}} : {}),
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: model === PersonaTextGenerator.primaryModel && withAvatar
+              ? user + "\n/no_think" : user },
+          ],
+          max_tokens: maxTokens,
+          temperature: persona.presetId === "workplace" ? 0.55 : 0.75,
+          ...(model === PersonaTextGenerator.fallbackModel
+            ? { chat_template_kwargs: { enable_thinking: false } } : {}),
         });
-        const text = this.readText(response);
-        if (!text) throw new Error("Text model returned empty content");
+        finishReason = this.finishReason(response);
+        const raw = this.readText(response);
+        if (!raw) throw new Error("EMPTY_TEXT");
+        stage = "parse";
         if (!withAvatar) {
-          const parsed=this.parseEnvelope(text);
-          return {markdown:parsed?.markdown ?? text};
+          const legacy = this.parseEnvelope(raw);
+          return { markdown: legacy?.markdown ?? raw };
         }
-        let parsed = this.parseEnvelope(text);
-        if (!parsed && text.trim().startsWith("#")) {
-          // Compatibility path for models that ignore JSON-only instructions.
-          // Interpret the COMPLETED Markdown with AI, never a keyword dictionary.
-          const repaired = await this.ai.run(model, {
-            messages: [
-              {role:"system",content:this.envelopeContract()},
-              {role:"user",content:[
-                "Convert the already completed Markdown into the required JSON envelope. Do not change the Markdown. Extract the character's resolved identity from its actual content:",
-                text,
-              ].join("\n\n")},
-            ],
-            max_tokens:Math.min(5900,maxTokens+600),temperature:0,
-          });
-          parsed=this.parseEnvelope(this.readText(repaired));
+        let parsed = this.parseEnvelope(raw);
+        if (!parsed) {
+          // Legacy models may return Markdown only. Request a SMALL identity
+          // card rather than printing/escaping the entire Markdown again.
+          const markdown = this.readPlainMarkdown(raw);
+          if (markdown) {
+            stage = "repair_identity_only";
+            const repaired = await this.ai.run(model, {
+              messages: [
+                { role: "system", content: [
+                  "Return ONLY a small JSON identity object for this fictional person.",
+                  "Fields: name, gender (female/male/nonbinary), age (numeric string), appearance, origin, role, personality, visualTone.",
+                  "If the text omits age, choose a plausible adult age that fits it. Do NOT repeat the Markdown.",
+                ].join("\n") },
+                { role: "user", content: markdown },
+              ],
+              max_tokens: 420, temperature: 0,
+              ...(model === PersonaTextGenerator.fallbackModel
+                ? { chat_template_kwargs: { enable_thinking: false } } : {}),
+            });
+            const card = this.parseIdentity(this.readText(repaired));
+            if (card) parsed = { markdown, resolvedIdentity: card };
+          }
         }
-        if (!parsed) throw new Error("Model did not return a parseable Markdown + identity envelope");
-        const identity = PersonaVisualIdentity.resolve(persona,parsed.resolvedIdentity);
-        if (identity.gender === "unspecified") {
-          throw new Error("No settled gender for a fictional portrait; refuse to guess independently of the generated Markdown");
-        }
+        if (!parsed) throw new Error("INVALID_MODEL_FORMAT");
+        stage = "identity_validation";
+        const identity = PersonaVisualIdentity.resolve(persona, parsed.resolvedIdentity);
+        if (identity.gender === "unspecified") throw new Error("MISSING_GENDER");
+        stage = "age_consistency";
         const finalized = new PersonaMarkdownIdentityPolicy().finalize(parsed.markdown, identity, persona);
-        return {markdown:finalized,identity};
+        return { markdown: finalized, identity };
       } catch (error) {
-        console.warn("Persona text generation or structured identity failed; trying fallback", model, error);
+        // No prompt, Markdown, personal information or user input in logs.
+        console.warn("persona_text_attempt_failed", {
+          model, stage, finishReason, errorType: error instanceof Error ? error.name : "UnknownError",
+        });
       }
     }
-    throw new AIUnavailableError("Text models could not return a consistent character identity and Markdown");
+    throw new AIUnavailableError("Text models could not return a usable persona and consistent character identity");
   }
 
   private envelopeContract(): string {
     return [
-      "MANDATORY API TRANSPORT FORMAT OVERRIDE: Return ONLY valid JSON; earlier instructions to return only Markdown apply to the CONTENT of the markdown field, not to the outer response.",
-      'Exactly {"markdown":"# Markdown persona ...","resolvedIdentity":{"name":"...","gender":"female|male|nonbinary","age":"...","appearance":"...","origin":"...","role":"...","personality":"...","visualTone":"..."}}.',
-      "No Markdown code fences around JSON. All 2 fields required; gender must be a SINGLE enum value, not a string containing pipe characters.",
-      "Use semantic understanding of the entire natural-language request, not word matching. E.g. descriptive Chinese expressions may imply presentation without spelling out female/male.",
-      "Explicit user facts override creativity; never change a supplied gender, age, origin or appearance.",
-      "For a fictional character with unspecified gender, choose one suitable identity yourself and describe that SAME identity in BOTH markdown and resolvedIdentity; do not leave gender unspecified or ask the user.",
-      "The markdown MUST describe the same person as resolvedIdentity. Do not infer nationality solely from interface language.",
-      "A fictional character MUST have a concrete numeric age, even if the user did not provide one. When unspecified, choose a sensible age fitting the role and appearance, put it in resolvedIdentity.age and explicitly write the SAME age near the top of the Markdown. Treat it as a fictional creative choice, not verified company personnel data. Never leave the age empty, do not ask the user, and do not let the image invent its own age.",
+      "MANDATORY API TRANSPORT FORMAT OVERRIDE: Output a SHORT JSON identity FIRST, then NORMAL Markdown. Never JSON-escape the complete Markdown document.",
+      "Exact structure:",
+      "<PERSONA_IDENTITY>",
+      '{"name":"...","gender":"female","age":"28","appearance":"...","origin":"...","role":"...","personality":"...","visualTone":"..."}',
+      "</PERSONA_IDENTITY>",
+      "# Full Markdown persona...",
+      "No preamble, code fences or thinking traces. Gender must be one of female, male, nonbinary. Age must be a concrete adult age expressed as digits.",
+      "Interpret the complete natural language request semantically; do not match a fixed word list. Use the SAME person in JSON identity and Markdown.",
+      "For fictional characters, invent reasonable gender and age only when not user-specified. Explicit facts override inferred ones.",
+      "Follow the requested writing language. Do not treat interface locale as verified nationality, or invent company policies.",
     ].join("\n");
   }
 
@@ -88,14 +110,49 @@ export class PersonaTextGenerator {
     return typeof value==="string" ? value.trim() : "";
   }
 
-  private parseEnvelope(text:string):{markdown:string;resolvedIdentity:unknown}|undefined {
-    let body=text.trim();
-    if(body.startsWith("```")) body=body.replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/,"");
+  private finishReason(result: unknown): string | undefined {
+    if (!result || typeof result !== "object") return undefined;
+    const choices = (result as { choices?: { finish_reason?: unknown }[] }).choices;
+    return typeof choices?.[0]?.finish_reason === "string" ? choices[0].finish_reason : undefined;
+  }
+
+  private cleanText(text: string): string {
+    return text.trim().replace(/^(?:<think>[\s\S]*?<\/think>\s*)+/i, "").trim();
+  }
+
+  private readPlainMarkdown(text: string): string | undefined {
+    const value = this.cleanText(text);
+    return /^#{1,3}\s+/.test(value) ? value : undefined;
+  }
+
+  private parseIdentity(text: string): unknown | undefined {
+    let value = this.cleanText(text);
+    if (value.startsWith("```")) value = value.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
     try {
-      const result=JSON.parse(body) as {markdown?:unknown;resolvedIdentity?:unknown};
-      if(typeof result.markdown !== "string" || !result.markdown.trim() || result.markdown.length>40000) return undefined;
-      if(!result.resolvedIdentity || typeof result.resolvedIdentity!=="object") return undefined;
-      return {markdown:result.markdown,resolvedIdentity:result.resolvedIdentity};
-    } catch {return undefined;}
+      const obj: unknown = JSON.parse(value);
+      if (!obj || typeof obj !== "object" || Array.isArray(obj)) return undefined;
+      return "resolvedIdentity" in obj ? (obj as { resolvedIdentity: unknown }).resolvedIdentity : obj;
+    } catch { return undefined; }
+  }
+
+  private parseEnvelope(text: string): { markdown: string; resolvedIdentity: unknown } | undefined {
+    let body = this.cleanText(text);
+    const tagged = body.match(/^<PERSONA_IDENTITY>\s*(\{[\s\S]*?\})\s*<\/PERSONA_IDENTITY>\s*(#{1,3}\s+[\s\S]+)$/);
+    if (tagged) {
+      try {
+        const card: unknown = JSON.parse(tagged[1]);
+        if (card && typeof card === "object" && !Array.isArray(card) && tagged[2].length <= 40000) {
+          return { markdown: tagged[2].trim(), resolvedIdentity: card };
+        }
+      } catch { /* invalid identity */ }
+    }
+    // Backward compatibility for existing JSON envelope responses.
+    if (body.startsWith("```")) body = body.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+    try {
+      const result = JSON.parse(body) as { markdown?: unknown; resolvedIdentity?: unknown };
+      if (typeof result.markdown !== "string" || !result.markdown.trim() || result.markdown.length > 40000) return undefined;
+      if (!result.resolvedIdentity || typeof result.resolvedIdentity !== "object") return undefined;
+      return { markdown: result.markdown, resolvedIdentity: result.resolvedIdentity };
+    } catch { return undefined; }
   }
 }
