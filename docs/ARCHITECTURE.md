@@ -100,7 +100,7 @@ rather than inventing per-model stage progress.
 
 ## Public MVP authoring versus external strict prompts
 
-`HostedPersonaBrief` isolates lightweight, playful, character-first copywriting from the existing `PromptComposer` enterprise-grade contracts. Hosted Workers AI `/drafts` and `/personas` call it internally; public `/prompts` for Grokbot retains the full contract and zero AI cost. `PersonaTextGenerator` appends its short identity-card transport when avatars are requested and asks Qwen3 to use non-thinking mode for interactive responsiveness; avatar prompts continue to use the same resolved character identity.
+`HostedPersonaBrief` isolates medium-structured, character-first hosted writing from the existing `PromptComposer` detailed external contracts. Workplace and personal assistant outputs use short practical Markdown sections, whereas character/NPC outputs use worldbuilding and interaction sections. Individual character traits are preserved, without imposing five-field checklists or unapproved company rules. Hosted Workers AI `/drafts` and `/personas` call it internally; public `/prompts` for Grokbot retains the full contract and zero AI cost. `PersonaTextGenerator` appends its short identity-card transport when avatars are requested and asks Qwen3 to use non-thinking mode for interactive responsiveness; avatar prompts continue to use the same resolved character identity.
 
 ## Bounded inference
 
