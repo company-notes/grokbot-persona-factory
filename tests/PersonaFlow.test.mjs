@@ -405,3 +405,49 @@ test("pencil image-model prompt stays in English without affecting returned Chin
   assert.match(modelPrompt, /Expressive graphite pencil portrait sketch/);
   assert.doesNotMatch(modelPrompt, /Photorealistic professional portrait/);
 });
+
+test("UTF-8 JSON fixture preserves Traditional Chinese values end-to-end without shell pipes", async () => {
+  // Regression: piping a Chinese PowerShell here-string into `node -` had
+  // replaced characters with '?'. Read exact UTF-8 bytes from disk instead.
+  const { readFile } = await import("node:fs/promises");
+  const jsonBytes = await readFile(new URL("./fixtures/YvonneLin.zh-hant.json", import.meta.url));
+  const parsed = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(jsonBytes));
+  assert.equal(parsed.values.gender, "女性");
+  assert.equal(parsed.values.name, "林雅雯");
+
+  const ai = new FakeAI();
+  const app = new WorkerApplication();
+  const response = await app.fetch(new Request("https://example.test/api/v1/prompts", {
+    method: "POST",
+    headers: { "content-type": "application/json; charset=utf-8" },
+    body: jsonBytes,
+  }), env(ai));
+
+  assert.equal(response.status, 200, "Valid Chinese gender must not be rejected");
+  const result = await response.json();
+  assert.match(result.systemPrompt, /使用繁體中文（臺灣）/);
+  assert.match(result.avatarPrompt, /林雅雯/);
+  assert.match(result.avatarPrompt, /寫實/);
+  assert.match(result.avatarPrompt, /臺灣女性/);
+  assert.match(result.avatarPrompt, /深藍色西裝外套/);
+  assert.doesNotMatch(result.avatarPrompt, /\uFFFD/);
+  assert.equal(ai.calls.length, 0, "Prompt-only must never invoke AI");
+});
+
+test("photoreal avatar explicitly excludes illustration, anime and fantasy costume", async () => {
+  const app = new WorkerApplication();
+  const ai = new FakeAI();
+  const { readFile } = await import("node:fs/promises");
+  const persona = JSON.parse(await readFile(new URL("./fixtures/YvonneLin.zh-hant.json", import.meta.url), "utf8"));
+  const response = await app.fetch(request("/api/v1/drafts", persona, true), env(ai));
+  assert.equal(response.status, 200);
+  const prompt = ai.calls.find((call) => call.model.includes("flux")).input.prompt;
+  assert.match(prompt, /Photorealistic corporate headshot/);
+  assert.match(prompt, /No illustration/);
+  assert.match(prompt, /No anime/);
+  assert.match(prompt, /No fantasy costume/);
+  assert.match(prompt, /No other people/);
+  assert.match(prompt, /No text, lettering, logo, watermark, or stamp/);
+  assert.match(prompt, /Apparent age: 52/);
+  assert.match(prompt, /Gender presentation: female/);
+});
