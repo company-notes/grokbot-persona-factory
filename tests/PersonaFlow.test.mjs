@@ -833,7 +833,7 @@ test("photographic avatar and Markdown share exactly the same identity facts", a
   const prompts = await response.json();
   assert.match(prompts.userPrompt, /使用者明確指定的角色事實/);
   assert.match(prompts.userPrompt, /Gender \/ 性別：女性/);
-  assert.match(prompts.userPrompt, /Age \\/ 年齡：34/);
+  assert.ok(prompts.userPrompt.includes("Age / 年齡：34"));
   assert.match(prompts.userPrompt, /深藍色西裝外套/);
   assert.match(prompts.userPrompt, /客服主管/);
   assert.match(prompts.avatarPrompt, /只有一位成年女性，不可畫成男性/);
