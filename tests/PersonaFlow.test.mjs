@@ -35,7 +35,7 @@ class FakeAI {
       const user = input.messages[1].content;
       const gender = user.includes("Gender / 性別：male") ? "male" :
         user.includes("Gender / 性別：nonbinary") ? "nonbinary" : "female";
-      const age = user.split("Age / 年齡：")[1]?.split("\\n")[0] || "";
+      const age = user.split("Age / 年齡：")[1]?.split(String.fromCharCode(10))[0] || "";
       return { response: JSON.stringify({
         markdown,
         resolvedIdentity: {
@@ -832,7 +832,7 @@ test("photographic avatar and Markdown share exactly the same identity facts", a
   assert.equal(response.status, 200);
   const prompts = await response.json();
   assert.match(prompts.userPrompt, /使用者明確指定的角色事實/);
-  assert.match(prompts.userPrompt, /Gender \/ 性別：女性/);
+  assert.ok(prompts.userPrompt.includes("Gender / 性別：female / 女性"));
   assert.ok(prompts.userPrompt.includes("Age / 年齡：34"));
   assert.match(prompts.userPrompt, /深藍色西裝外套/);
   assert.match(prompts.userPrompt, /客服主管/);
