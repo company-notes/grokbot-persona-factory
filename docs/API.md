@@ -203,3 +203,24 @@ Returns `{ "resolvedIdentity": { ... }, "avatarPrompt": "...localized...", "imag
 `/drafts` now also returns an optional `resolvedIdentity`. `/packages` accepts the same optional card and includes it in ZIP `manifest.json`. All four old endpoints and their core response fields remain. Text-only generation and revisions continue using Markdown. If the text model unexpectedly returns only Markdown for an avatar request, the server may ask the text model to extract the identity in a second pass; if no consistent card can be obtained, it fails safely without producing an unrelated image.
 
 The site does not store input, Markdown, or cards. Existing post-image visual review still applies, but it is not a guarantee of correctness.
+
+## Character age and generation feedback
+
+For an avatar-enabled *fictional* character, the text model must choose a
+**concrete age** if the user did not specify one. `resolvedIdentity.age`, the
+finished Markdown and the final FLUX image prompt all use this one AI decision.
+When the model supplies an age in its card but omits it from the Markdown,
+the server places an age line after the primary heading; it labels an invented
+age as an **AI-proposed character detail**. A conflicting or missing age is
+rejected before image generation rather than independently guessed by FLUX.
+A user-supplied age remains authoritative. The local Grokbot prompt also
+requests the same age in Markdown and `resolvedIdentity`.
+
+The website displays an accessible, indeterminate loading mask with elapsed
+seconds for AI text/image creation and refinements. The single `/drafts` HTTP
+request does not stream backend progress, so the mask explicitly describes the
+sequence without pretending to report an exact step or percent. Requests can
+take longer with photorealistic generation and visual review. No unnecessary
+extra model call is used when the initial text model returns a valid Markdown
+and identity card. `/prompts`, `/avatar-prompts`, and `/packages` remain
+zero-Workers-AI operations.

@@ -35,7 +35,7 @@ class FakeAI {
       const user = input.messages[1].content;
       const gender = user.includes("Gender / 性別：male") ? "male" :
         user.includes("Gender / 性別：nonbinary") ? "nonbinary" : "female";
-      const age = user.split("Age / 年齡：")[1]?.split(String.fromCharCode(10))[0] || "";
+      const age = user.split("Age / 年齡：")[1]?.split(String.fromCharCode(10))[0] || "33";
       return { response: JSON.stringify({
         markdown,
         resolvedIdentity: {
@@ -1095,4 +1095,79 @@ test("a text model returning plain Markdown can recover its identity with an ext
   assert.equal((await response.json()).resolvedIdentity.gender,"female");
   assert.equal(ai.calls.filter(c=>!c.model.includes("flux")).length,2);
   assert.equal(ai.calls.filter(c=>c.model.includes("flux")).length,1);
+});
+
+test("quick fictional persona without specified age uses the ONE AI chosen age for Markdown and image",async()=>{
+  class AgeChoosingAI extends FakeAI {
+    async run(model,input){
+      if(!model.includes("flux") && input.messages?.[0]?.content?.includes("MANDATORY API TRANSPORT FORMAT OVERRIDE")){
+        this.calls.push({model,input});
+        return {response:JSON.stringify({
+          markdown:"# 林映真 Iris Lin\n\n## 固定身分與人格行為\n風趣認真的總經理秘書。",
+          resolvedIdentity:{name:"林映真",gender:"female",age:"31",appearance:"大波浪捲髮，商務套裝",role:"總經理秘書",
+            visualTone:"confident, professional, playful"}
+        })};
+      }
+      return super.run(model,input);
+    }
+  }
+  const ai=new AgeChoosingAI(),app=new WorkerApplication();
+  const persona={presetId:"workplace",locale:"zh-hant",avatarStyle:"realistic",includeAvatar:true,
+    values:{brief:"大美女、暗戀總經理的秘書，說話風趣、做事認真，大波浪捲"}};
+  const response=await app.fetch(request("/api/v1/drafts",persona,true),env(ai));
+  assert.equal(response.status,200);
+  const data=await response.json();
+  assert.equal(data.resolvedIdentity.age,"31");
+  assert.match(data.markdown,/年齡：31 歲（AI 建議設定）/);
+  assert.match(data.markdown,/林映真/);
+  const imagePrompt=await avatarPromptFromCall(ai.calls.find(x=>x.model.includes("flux")));
+  assert.match(imagePrompt,/appears 31 years old/);
+  assert.match(imagePrompt,/大波浪捲髮/);
+  assert.equal(ai.calls.filter(x=>!x.model.includes("flux")).length,1);
+});
+
+test("generated Markdown and AI identity card cannot disagree about age",async()=>{
+  class ConflictingAgeAI extends FakeAI {
+    async run(model,input){
+      if(model.includes("flux"))throw Error("Image must not use inconsistent ages");
+      this.calls.push({model,input});
+      return {response:JSON.stringify({markdown:"# 秘書\n\n現年 42 歲的女性秘書。",
+        resolvedIdentity:{gender:"female",age:"28",appearance:"捲髮"}})};
+    }
+  }
+  const ai=new ConflictingAgeAI();
+  const result=await new WorkerApplication().fetch(request("/api/v1/drafts",{
+    presetId:"workplace",locale:"zh-hant",includeAvatar:true,values:{brief:"一個風趣秘書"}
+  },true),env(ai));
+  assert.equal(result.status,503);
+  assert.equal(ai.calls.filter(x=>x.model.includes("flux")).length,0);
+});
+
+test("missing AI-chosen age fails safely instead of producing an ageless portrait",async()=>{
+  class AgeMissingAI extends FakeAI {
+    async run(model,input){
+      if(model.includes("flux"))throw Error("Never generate image without age");
+      this.calls.push({model,input});
+      return {response:JSON.stringify({markdown:"# 秘書\n\n風趣專業。",
+        resolvedIdentity:{gender:"female",age:"",role:"秘書"}})};
+    }
+  }
+  const ai=new AgeMissingAI();
+  const result=await new WorkerApplication().fetch(request("/api/v1/drafts",{
+    presetId:"workplace",locale:"zh-hant",includeAvatar:true,values:{brief:"一個風趣秘書"}
+  },true),env(ai));
+  assert.equal(result.status,503);
+  assert.equal(ai.calls.filter(x=>x.model.includes("flux")).length,0);
+});
+
+test("Grokbot prompt asks the local AI to settle age in both Markdown and card",async()=>{
+  const ai=new FakeAI(),app=new WorkerApplication();
+  const response=await app.fetch(request("/api/v1/prompts",{
+    presetId:"workplace",locale:"zh-hant",includeAvatar:true,values:{brief:"一個很漂亮的秘書"}
+  }),env(ai));
+  assert.equal(response.status,200);
+  const prompt=(await response.json()).grokbotPrompt;
+  assert.match(prompt,/年齡要由本地 AI 選定具體數字/);
+  assert.match(prompt,/resolvedIdentity/);
+  assert.equal(ai.calls.length,0);
 });

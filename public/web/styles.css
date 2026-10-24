@@ -45,3 +45,15 @@
 .quotaMeter span { display:block; height:100%; width:0; background:#7b60d9; transition:width .15s; }
 .quotaBanner.exhausted { background:#fff6f3; border-color:#f3d6d0;color:#ad4f41; }
 .quotaBanner.exhausted .quotaMeter span { background:#e49a72; }
+
+/* Honest, indeterminate progress mask: no made-up percentage or backend stage. */
+.loadingOverlay[hidden]{display:none}
+.loadingOverlay{position:fixed;inset:0;z-index:2000;display:grid;place-items:center;padding:20px;background:rgba(29,22,57,.58);backdrop-filter:blur(5px)}
+.loadingCard{width:min(420px,100%);padding:36px 28px 32px;text-align:center;background:#fff;box-shadow:0 20px 75px rgba(22,18,50,.28);border-radius:19px;border:1px solid #e7e0fa;color:#292640}
+.loadingSpinner{width:54px;height:54px;margin:0 auto 22px;border-radius:50%;border:5px solid #e9e2fc;border-top-color:#7556d3;animation:loadingSpin .95s linear infinite}
+.loadingCard h2{font-size:20px;margin:0 0 13px;font-weight:800}
+.loadingCard p{color:#66627e;line-height:1.85;font-size:13px;margin:0}
+.loadingElapsed{margin-top:19px;padding-top:15px;border-top:1px solid #efebf5;color:#7657c7;font-size:13px;font-variant-numeric:tabular-nums}
+body.is-generating{overflow:hidden}
+@keyframes loadingSpin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.loadingSpinner{animation-duration:3s}}

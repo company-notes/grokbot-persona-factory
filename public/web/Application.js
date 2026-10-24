@@ -2,11 +2,13 @@ import { HTTPClient } from "./HTTPClient.js";
 import { LocalizationClient } from "./LocalizationClient.js";
 import { MarkdownPreview } from "./MarkdownPreview.js";
 import { PersonaForm } from "./PersonaForm.js";
+import { LoadingMask } from "./LoadingMask.js";
 
 class PersonaApplication {
   constructor() {
     this.http = new HTTPClient();
     this.i18n = new LocalizationClient(this.http);
+    this.loading = new LoadingMask(this.i18n);
     this.preview = new MarkdownPreview(document.getElementById("draftPreview"));
     this.form = new PersonaForm(
       document.getElementById("presets"),
@@ -158,6 +160,7 @@ class PersonaApplication {
   }
 
   async _perform() {
+    if (this.loading.active) return;
     const persona = this._collect();
     if (!persona) {
       return;
@@ -166,6 +169,7 @@ class PersonaApplication {
     const button = document.getElementById("mainAction");
     button.disabled = true;
     this._status(this.i18n.text(this.method === "worker" ? "status.loadingDraft" : "status.loadingPrompt"));
+    if (this.method === "worker") this.loading.show("draft", persona.includeAvatar === true);
     try {
       if (this.method === "worker") {
         const draft = await this.http.draft(persona);
@@ -202,12 +206,14 @@ class PersonaApplication {
         this._statusError(error);
       }
     } finally {
+      this.loading.hide();
       button.disabled = false;
       this._refreshQuotaUI();
     }
   }
 
   async _refine() {
+    if (this.loading.active) return;
     const markdown = document.getElementById("draftMarkdown").value;
     const instructions = document.getElementById("refineInstructions").value.trim();
     if (!this.draftPersona || !markdown.trim()) {
@@ -222,6 +228,7 @@ class PersonaApplication {
     const button = document.getElementById("refineDraft");
     button.disabled = true;
     this._status(this.i18n.text("status.loadingRefine"));
+    this.loading.show("refine");
     try {
       const persona = {
         ...this.draftPersona,
@@ -241,6 +248,7 @@ class PersonaApplication {
       await this._refreshQuota();
       this._statusError(error);
     } finally {
+      this.loading.hide();
       button.disabled = false;
     }
   }

@@ -1,6 +1,7 @@
 import type { AiBinding, PersonaRequest, PromptBundle } from "../Types.js";
 import { AIUnavailableError } from "../Errors.js";
 import { PersonaVisualIdentity } from "../persona/PersonaVisualIdentity.js";
+import { PersonaMarkdownIdentityPolicy } from "../persona/PersonaMarkdownIdentityPolicy.js";
 
 /** Owns text generation and the typed JSON transport contract; no image logic. */
 export class PersonaTextGenerator {
@@ -58,7 +59,8 @@ export class PersonaTextGenerator {
         if (identity.gender === "unspecified") {
           throw new Error("No settled gender for a fictional portrait; refuse to guess independently of the generated Markdown");
         }
-        return {markdown:parsed.markdown,identity};
+        const finalized = new PersonaMarkdownIdentityPolicy().finalize(parsed.markdown, identity, persona);
+        return {markdown:finalized,identity};
       } catch (error) {
         console.warn("Persona text generation or structured identity failed; trying fallback", model, error);
       }
@@ -75,7 +77,7 @@ export class PersonaTextGenerator {
       "Explicit user facts override creativity; never change a supplied gender, age, origin or appearance.",
       "For a fictional character with unspecified gender, choose one suitable identity yourself and describe that SAME identity in BOTH markdown and resolvedIdentity; do not leave gender unspecified or ask the user.",
       "The markdown MUST describe the same person as resolvedIdentity. Do not infer nationality solely from interface language.",
-      "Age and other details may be omitted when genuinely not settled, but never insert invented personal details as actual existing company facts.",
+      "A fictional character MUST have a concrete numeric age, even if the user did not provide one. When unspecified, choose a sensible age fitting the role and appearance, put it in resolvedIdentity.age and explicitly write the SAME age near the top of the Markdown. Treat it as a fictional creative choice, not verified company personnel data. Never leave the age empty, do not ask the user, and do not let the image invent its own age.",
     ].join("\n");
   }
 

@@ -79,3 +79,17 @@ cannot prove a real-world identity or nationality.
 All characters and images remain request-scoped: the Worker persists **only
 site-wide quota data**. Image generation/review consumes Workers AI Neurons.
 The daily site-credit limit is not a Cloudflare spending cap.
+
+## Generation integrity and user feedback
+
+`PersonaMarkdownIdentityPolicy` operates after the semantic
+`PersonaTextGenerator`: it requires an AI-resolved concrete age for fictional
+portraits, checks the introduction for conflicting numeric ages, and inserts
+the already-chosen age into Markdown if absent. This step never chooses a
+number itself, and never starts a new AI call. Missing/contradictory model
+facts prevent a wrongly matched portrait.
+
+`public/web/LoadingMask.js` owns the accessible modal progress overlay,
+elapsed seconds and cleanup, separate from API transport. Because the Worker
+returns one final JSON result, the overlay is deliberately indeterminate
+rather than inventing per-model stage progress.

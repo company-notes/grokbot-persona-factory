@@ -106,7 +106,12 @@ class PersonaBrowserTest(unittest.TestCase):
             page.locator("#includeAvatar").check(force=True)
             page.locator("#avatarStyle").select_option("realistic")
             page.locator("#mainAction").click()
+            page.locator("#loadingOverlay").wait_for(state="visible",timeout=3000)
+            self.assertEqual(page.locator("#loadingOverlay").get_attribute("aria-modal"),"true")
+            self.assertIn("年齡",page.locator("#loadingDescription").inner_text())
             page.wait_for_function("document.querySelector('#draftMarkdown').value.includes('模擬人設')")
+            page.locator("#loadingOverlay").wait_for(state="hidden",timeout=8000)
+            self.assertIn("29",page.locator("#draftMarkdown").input_value())
             self.assertTrue(page.locator("#draftAvatarPreview").is_visible())
             self.assertNotIn("需要明確人物性別",page.locator("#status").inner_text())
             # Editing Markdown invalidates the previously generated avatar;

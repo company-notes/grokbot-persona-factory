@@ -149,9 +149,9 @@ export class PersonaVisualIdentity {
       this.origin ? `- Origin / 地域：${this.origin}` : "",
       this.personality ? `- Personality / 人格：${this.personality}` : "",
       ({
-        en: "Interpret the complete brief semantically. If a fictional character's gender or age is not supplied, you may invent them, but use ONE choice consistently in the Markdown and resolvedIdentity. Do not infer nationality from UI locale.",
-        "zh-hant": "請以語意理解完整的一句話需求，不要靠固定關鍵字猜性別。虛構人物若未指定性別或年齡，可合理創作，但 Markdown 與 resolvedIdentity 必須是同一個選擇。不可依介面語言杜撰國籍。",
-        "zh-hans": "请语义理解完整需求，不靠固定关键词猜性别。虚构人物未指定性别或年龄时可合理创作，但 Markdown 与 resolvedIdentity 须完全一致。不可凭界面语言捏造国籍。",
+        en: "Interpret the complete brief semantically. For a fictional character, choose an age fitting the role when not supplied; explicitly state it in the Markdown and the resolvedIdentity. Unspecified gender may be decided by the text AI too, but both results must agree. Do not infer nationality from UI locale.",
+        "zh-hant": "請以語意理解完整的一句話需求，不要靠固定關鍵字猜性別。虛構人物若未指定年齡，請依職務與氣質決定具體年齡並寫進 Markdown 與 resolvedIdentity；若未指定性別也可創作，但兩者必須一致。不可依介面語言杜撰國籍。",
+        "zh-hans": "请语义理解完整需求，不靠固定关键词猜性别。虚构人物未指定年龄时须按职务与形象选定具体年龄，写入 Markdown 与 resolvedIdentity；未指定性别时也可以创作，两者必须一致。不可凭界面语言捏造国籍。",
       })[locale],
     ];
     return lines.filter(Boolean).join("\n");

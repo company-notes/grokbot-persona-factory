@@ -22,6 +22,8 @@ const webRoot = path.resolve("public/web");
 const env = {
   AI: {
     async run(model, input) {
+      // Bounded test-only latency exposes the loading overlay in Chromium.
+      await new Promise(resolve => setTimeout(resolve, 380));
       if (model.includes("flux")) {
         return { image: btoa(String.fromCharCode(255, 216, 255, 217)) };
       }
