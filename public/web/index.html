@@ -76,6 +76,14 @@
               <button class="methodOption" data-method="prompt" type="button" aria-pressed="false">
                 <span class="methodIcon">⌘</span><span class="methodContent"><strong data-i18n="method.prompt">只產生 Prompt</strong><small data-i18n="method.promptNote">由 Grokbot 或自備 AI 產生</small></span><span class="methodRadio"></span>
               </button>
+              <div class="avatarStylePanel">
+                <label for="detailLevel" class="apiLabel" data-i18n="form.detailLabel">人設詳細度</label>
+                <select id="detailLevel">
+                  <option value="concise" data-i18n="form.detail.concise">精簡</option>
+                  <option value="standard" selected data-i18n="form.detail.standard">標準</option>
+                  <option value="full" data-i18n="form.detail.full">完整</option>
+                </select>
+              </div>
               <label class="toggleLine"><input id="includeAvatar" type="checkbox" checked><span class="switch"></span><span><span data-i18n="avatar.title">產生頭像</span><small data-i18n="avatar.note">可選擇的角色肖像</small></span></label>
               <div id="avatarStylePanel" class="avatarStylePanel">
                 <label for="avatarStyle" class="apiLabel" data-i18n="avatar.styleLabel">頭像畫風</label>

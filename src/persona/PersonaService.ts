@@ -34,12 +34,12 @@ export class PersonaService {
 
   async draft(input: PersonaRequest, env: Env): Promise<GeneratedPersona> {
     const { persona, prompts } = this.getPrompts(input);
-    return new WorkerAIService(env.AI).generate(prompts, persona.includeAvatar === true, this.avatarPrompts.compose(persona));
+    return new WorkerAIService(env.AI).generate(prompts, persona.includeAvatar === true, this.avatarPrompts.compose(persona), persona);
   }
 
   async generate(input: PersonaRequest, env: Env): Promise<Uint8Array> {
     const { persona, prompts } = this.getPrompts(input);
-    const generated = await new WorkerAIService(env.AI).generate(prompts, persona.includeAvatar === true, this.avatarPrompts.compose(persona));
+    const generated = await new WorkerAIService(env.AI).generate(prompts, persona.includeAvatar === true, this.avatarPrompts.compose(persona), persona);
     const avatar = generated.avatarBytes && generated.avatarMimeType
       ? { bytes: generated.avatarBytes, mimeType: generated.avatarMimeType }
       : undefined;

@@ -41,6 +41,7 @@ Example:
   "locale": "zh-hant",
   "includeAvatar": true,
   "avatarStyle": "cartoon",
+  "detailLevel": "standard",
   "values": {
     "name": "小安",
     "department": "研發部",
@@ -131,3 +132,9 @@ Alternatively, use a **UTF-8 Node script** that reads the file with `fs.readFile
 `npm test` includes a regression check that loads this fixture as UTF-8 bytes, exercises `POST /api/v1/prompts`, verifies Chinese name/gender/appearance survive unchanged, and confirms that prompt-only does not call an AI model.
 
 **Image model versus user-facing language:** the API returns localized avatar prompts in `en`, `zh-hant` or `zh-hans`. Internally the Worker uses a separate English image-model prompt for reliable composition; `realistic` additionally excludes illustration, anime, fantasy costumes, extra people and text. This does not change the language of the persona Markdown.
+
+## Persona quality
+
+Optional `detailLevel`: `concise`, `standard` (default), or `full`. The website supports the same choices. For workplace personas, the prompt requests concrete duties, owner boundaries, verifiable outcomes and work scenarios. Other presets follow their own standards.
+
+`grokbotPrompt` includes the complete `systemPrompt` and `userPrompt`, so local Grokbot receives the same requirements as Workers AI. `/api/v1/prompts` still calls no AI and consumes no site credits.

@@ -44,10 +44,14 @@ export class PersonaValidator {
       }
     }
 
+    if (persona.detailLevel !== undefined && !["concise", "standard", "full"].includes(persona.detailLevel)) {
+      throw new ValidationError("Invalid detailLevel");
+    }
     const avatarStyle = new AvatarStyles().require(persona.avatarStyle);
 
     return {
       avatarStyle,
+      detailLevel: persona.detailLevel ?? "standard",
       presetId: preset.id,
       values,
       locale: this.i18n.normalize(persona.locale),

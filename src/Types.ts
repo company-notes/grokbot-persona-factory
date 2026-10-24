@@ -36,6 +36,7 @@ export interface PersonaRequest {
   locale?: string;
   includeAvatar?: boolean;
   avatarStyle?: string;
+  detailLevel?: "concise" | "standard" | "full";
   existingMarkdown?: string;
   revisionInstructions?: string;
 }

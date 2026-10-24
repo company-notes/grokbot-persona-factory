@@ -1,5 +1,5 @@
 import { AIUnavailableError } from "../Errors.js";
-import type { AiBinding, PromptBundle } from "../Types.js";
+import type { AiBinding, PromptBundle, PersonaRequest } from "../Types.js";
 
 export interface GeneratedPersona {
   markdown: string;
@@ -10,14 +10,15 @@ export interface GeneratedPersona {
 export class WorkerAIService {
   constructor(private readonly ai: AiBinding) {}
 
-  async generate(prompt: PromptBundle, includeAvatar: boolean, imageModelPrompt: string): Promise<GeneratedPersona> {
+  async generate(prompt: PromptBundle, includeAvatar: boolean, imageModelPrompt: string, persona: PersonaRequest): Promise<GeneratedPersona> {
+    const maxTokens = persona.detailLevel === "concise" ? 1900 : persona.detailLevel === "full" ? 4200 : 3400;
     const textResponse = await this._invoke("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
       messages: [
         { role: "system", content: prompt.systemPrompt },
         { role: "user", content: prompt.userPrompt },
       ],
-      max_tokens: 3400,
-      temperature: 0.75,
+      max_tokens: maxTokens,
+      temperature: persona.presetId === "workplace" ? 0.55 : 0.75,
     }) as { response?: string };
     const markdown = textResponse.response?.trim();
     if (!markdown) {

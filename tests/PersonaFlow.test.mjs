@@ -451,3 +451,49 @@ test("photoreal avatar explicitly excludes illustration, anime and fantasy costu
   assert.match(prompt, /Apparent age: 52/);
   assert.match(prompt, /Gender presentation: female/);
 });
+
+
+test("prompt-only Grokbot text includes system rules and job-specific quality guidance", async () => {
+  const app = new WorkerApplication();
+  const ai = new FakeAI();
+  const response = await app.fetch(request("/api/v1/prompts", { ...samplePersona,
+    locale: "zh-hant", values: { ...samplePersona.values, role: "人事行政主管" }
+  }), env(ai));
+  assert.equal(response.status, 200);
+  const prompts = await response.json();
+  assert.ok(prompts.grokbotPrompt.includes(prompts.systemPrompt));
+  assert.ok(prompts.grokbotPrompt.includes(prompts.userPrompt));
+  assert.match(prompts.grokbotPrompt, /例行任務/);
+  assert.match(prompts.grokbotPrompt, /標準：1100/);
+  assert.equal(ai.calls.length, 0);
+});
+
+test("detail level is validated and all three locales generate preset-specific guidance", async () => {
+  const app = new WorkerApplication();
+  for (const locale of ["en", "zh-hant", "zh-hans"]) {
+    for (const detailLevel of ["concise", "standard", "full"]) {
+      const response = await app.fetch(request("/api/v1/prompts", { ...samplePersona, locale, detailLevel }), env(new FakeAI()));
+      assert.equal(response.status, 200);
+      const p = await response.json();
+      assert.ok(p.grokbotPrompt.includes(p.systemPrompt));
+      assert.match(p.userPrompt, /owner/i);
+      const a = await app.fetch(request("/api/v1/prompts", { presetId: "assistant", locale, detailLevel, values: { brief: "A personal assistant" } }), env(new FakeAI()));
+      assert.equal(a.status, 200);
+      assert.doesNotMatch((await a.json()).userPrompt, /每項重要職責|每项重要职责|For every important duty/);
+    }
+  }
+  const invalid = await app.fetch(request("/api/v1/prompts", { ...samplePersona, detailLevel: "unknown" }), env(new FakeAI()));
+  assert.equal(invalid.status, 400);
+});
+
+test("Workers AI respects the requested detail and workplace generation stability", async () => {
+  const app = new WorkerApplication();
+  for (const [detailLevel, tokens] of [["concise", 1900], ["standard", 3400], ["full", 4200]]) {
+    const ai = new FakeAI();
+    const res = await app.fetch(request("/api/v1/personas", { ...samplePersona, detailLevel }, true), env(ai));
+    assert.equal(res.status, 200);
+    assert.equal(ai.calls[0].input.max_tokens, tokens);
+    assert.equal(ai.calls[0].input.temperature, 0.55);
+    assert.match(ai.calls[0].input.messages[1].content, /Owner/);
+  }
+});
