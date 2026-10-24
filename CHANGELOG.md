@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — Avatar prompt reliability
+
+- Separated public localized avatar prompts (`/api/v1/prompts`) from the English image-model prompt sent to Workers AI, preserving the user's selected locale for the interface and Grokbot persona instructions.
+- Made solo-character, no-text, no-logo and requested visual style constraints explicit in the image-model prompt.
+- Added regression tests for realistic and pencil styles across EN, Traditional Chinese and Simplified Chinese; 27/27 tests passing on GitHub Actions.
+- The reported Cloudflare Error 1010 affected GitHub Runner requests; a separate client's successful production API call shows this was not a universal API outage.
+
 ## 0.3.1 — Hosted allowance recalibration and deployment separation
 
 - Increased site allowance to 150 hosted credits/day (not Cloudflare billing Neurons).
