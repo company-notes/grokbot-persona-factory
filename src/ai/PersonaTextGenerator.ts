@@ -2,6 +2,7 @@ import type { AiBinding, PersonaRequest, PromptBundle } from "../Types.js";
 import { AIUnavailableError } from "../Errors.js";
 import { PersonaVisualIdentity } from "../persona/PersonaVisualIdentity.js";
 import { PersonaMarkdownIdentityPolicy } from "../persona/PersonaMarkdownIdentityPolicy.js";
+import { HostedPersonaBrief } from "./HostedPersonaBrief.js";
 
 /** Owns text generation and the typed JSON transport contract; no image logic. */
 export class PersonaTextGenerator {
@@ -17,13 +18,16 @@ export class PersonaTextGenerator {
     const maxTokens = persona.detailLevel === "concise" ? 2600 : persona.detailLevel === "full" ? 5900 : 4500;
     // The structured envelope is required only when an avatar is requested;
     // text-only and revisions retain the historical Markdown format.
+    // Website AI uses a lighter creative contract. The public /prompts API
+    // and external Grokbot SOP remain unchanged for advanced users.
+    const creative = new HostedPersonaBrief().compose(persona, prompt);
     const system = withAvatar
-      ? [prompt.systemPrompt, this.envelopeContract()].join("\n\n")
-      : prompt.systemPrompt;
+      ? [creative.system, this.envelopeContract()].join("\n\n")
+      : creative.system;
     const user = withAvatar
-      ? [prompt.userPrompt,
+      ? [creative.user,
         "First output a short <PERSONA_IDENTITY> JSON card, then write the complete Markdown normally. Both must describe the SAME person."].join("\n\n")
-      : prompt.userPrompt;
+      : creative.user;
     for (const model of [PersonaTextGenerator.primaryModel, PersonaTextGenerator.fallbackModel]) {
       let stage = "model_call";
       let finishReason: string | undefined;
@@ -31,11 +35,11 @@ export class PersonaTextGenerator {
         const response = await this.ai.run(model, {
           messages: [
             { role: "system", content: system },
-            { role: "user", content: model === PersonaTextGenerator.primaryModel && withAvatar
-              ? user + "\n/no_think" : user },
+            { role: "user", content: model === PersonaTextGenerator.primaryModel
+              ? user + "\n/think" : user },
           ],
           max_tokens: maxTokens,
-          temperature: persona.presetId === "workplace" ? 0.55 : 0.75,
+          temperature: persona.presetId === "workplace" ? 0.65 : 0.75,
           ...(model === PersonaTextGenerator.fallbackModel
             ? { chat_template_kwargs: { enable_thinking: false } } : {}),
         });

@@ -521,8 +521,8 @@ test("Workers AI respects the requested detail and workplace generation stabilit
     const res = await app.fetch(request("/api/v1/personas", { ...samplePersona, detailLevel }, true), env(ai));
     assert.equal(res.status, 200);
     assert.equal(ai.calls[0].input.max_tokens, tokens);
-    assert.equal(ai.calls[0].input.temperature, 0.55);
-    assert.match(ai.calls[0].input.messages[1].content, /Owner/);
+    assert.equal(ai.calls[0].input.temperature, 0.65);
+    assert.match(ai.calls[0].input.messages[1].content, /role|職務|department|職責|工作同事/);
   }
 });
 
@@ -1267,7 +1267,8 @@ test("Qwen3 compact identity header plus ordinary Markdown needs one text call, 
   assert.equal(data.resolvedIdentity.gender,"female");
   assert.match(data.markdown,/^# 林小禾/);
   assert.equal(ai.calls.filter(c=>!c.model.includes("flux")).length,1);
-  assert.match(ai.calls[0].input.messages[1].content,/\/no_think/);
+  assert.match(ai.calls[0].input.messages[1].content,/\/think/);
+  assert.doesNotMatch(ai.calls[0].input.messages[1].content,/\/no_think/);
   assert.ok(ai.calls[0].input.messages[0].content.includes("<PERSONA_IDENTITY>"));
 });
 
@@ -1334,4 +1335,75 @@ test("text-only generation still produces Markdown without enforcing portrait id
   assert.match(data.markdown,/核心定位/);
   assert.equal(ai.calls.length,1);
   assert.doesNotMatch(ai.calls[0].input.messages[0].content,/MANDATORY API TRANSPORT FORMAT OVERRIDE/);
+});
+
+test("hosted workplace MVP prioritizes user's distinctive personality over enterprise boilerplate",async()=>{
+  const ai=new FakeAI(),app=new WorkerApplication();
+  const idea="大美女、暗戀總經理的秘書，說話風趣、做事認真、大波浪捲、ISTJ，會和小晴吃醋";
+  const payload={presetId:"workplace",locale:"zh-hant",includeAvatar:true,avatarStyle:"realistic",values:{brief:idea}};
+  const result=await app.fetch(request("/api/v1/drafts",payload,true),env(ai));
+  assert.equal(result.status,200);
+  const call=ai.calls.find(x=>x.model.includes("qwen"));
+  assert.ok(call);
+  assert.match(call.input.messages[1].content,/暗戀總經理/);
+  assert.match(call.input.messages[1].content,/小晴吃醋/);
+  assert.match(call.input.messages[1].content,/ISTJ/);
+  assert.match(call.input.messages[0].content,/NEVER change the requested job, personality, relationships, quirks/);
+  assert.match(call.input.messages[1].content,/不要強制三種事件/);
+  assert.doesNotMatch(call.input.messages[1].content,/三種實際工作情境|逐項五欄|三層權限/);
+  assert.match(call.input.messages[1].content,/650～1100 字/);
+  assert.match(call.input.messages[1].content,/\/think/);
+  assert.doesNotMatch(call.input.messages[1].content,/\/no_think/);
+  assert.equal(ai.calls.filter(x=>x.model.includes("qwen")).length,1);
+  assert.equal(ai.calls.filter(x=>x.model.includes("flux")).length,1);
+});
+
+test("no-avatar hosted text also enables Qwen thinking, while /prompts still provides the full external contract",async()=>{
+  const app=new WorkerApplication(), ai=new FakeAI();
+  const payload={presetId:"workplace",locale:"zh-hant",includeAvatar:false,values:{brief:"總經理秘書，說話有趣、愛吃醋但不失專業"}};
+  const hosted=await app.fetch(request("/api/v1/drafts",payload,true),env(ai));
+  assert.equal(hosted.status,200);
+  assert.match(ai.calls[0].input.messages[1].content,/\/think/);
+  assert.match(ai.calls[0].input.messages[1].content,/說話有趣/);
+  assert.doesNotMatch(ai.calls[0].input.messages[1].content,/三種實際工作情境/);
+  const before=ai.calls.length;
+  const external=await app.fetch(request("/api/v1/prompts",payload),env(ai));
+  assert.equal(external.status,200);
+  const source=await external.json();
+  assert.match(source.userPrompt,/三種實際工作情境/);
+  assert.match(source.grokbotPrompt,/三種實際工作情境/);
+  assert.equal(ai.calls.length,before,"prompt-only flow does not invoke Workers AI");
+});
+
+test("hosted MVP has light, distinct themes for assistant, character and NPC without workplace SOP",async()=>{
+  const app=new WorkerApplication();
+  for(const [presetId,brief,expected] of [
+    ["assistant","小禾，幫我處理行程與信件",/寄信、刪除/],
+    ["character","一位害羞的魔女，喜歡烘焙",/故事人物/],
+    ["npc","奇幻世界的賣藥草商人",/世界觀/]
+  ]){
+    const ai=new FakeAI();
+    const result=await app.fetch(request("/api/v1/drafts",{
+      presetId,locale:"zh-hant",includeAvatar:false,values:{brief}
+    },true),env(ai));
+    assert.equal(result.status,200);
+    const user=ai.calls[0].input.messages[1].content;
+    assert.match(user,expected);
+    assert.match(user,/\/think/);
+    assert.doesNotMatch(user,/企業 SOP|強制三種事件|三種實際工作情境/);
+  }
+});
+
+test("editing an existing persona remains faithful to the old draft instead of being rewritten as a new playful character",async()=>{
+  const app=new WorkerApplication(),ai=new FakeAI();
+  const draft="# 現有人設\n\n這位主管比較嚴謹。";
+  const result=await app.fetch(request("/api/v1/drafts",{
+    presetId:"workplace",locale:"zh-hant",includeAvatar:false,values:{brief:"主管"},
+    existingMarkdown:draft,revisionInstructions:"只改一個說話範例"
+  },true),env(ai));
+  assert.equal(result.status,200);
+  const prompt=ai.calls[0].input.messages[1].content;
+  assert.match(prompt,/現有人設/);
+  assert.match(prompt,/只改一個說話範例/);
+  assert.doesNotMatch(prompt,/Original idea \(MOST IMPORTANT\)/);
 });

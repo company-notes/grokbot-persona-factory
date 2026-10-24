@@ -97,3 +97,7 @@ rather than inventing per-model stage progress.
 ## Production failure hardening
 
 `PersonaTextGenerator` accepts a short tagged identity card followed by normal Markdown and retains legacy full-JSON envelope compatibility. Markdown-only responses can recover using one small character-card extraction request; no second full Markdown generation is required. Qwen3 image-enabled requests include the non-thinking control. Logs capture the failure stage without revealing persona data. If both text models genuinely fail, `AI_UNAVAILABLE` remains a 503 rather than returning a mismatched avatar.
+
+## Public MVP authoring versus external strict prompts
+
+`HostedPersonaBrief` isolates lightweight, playful, character-first copywriting from the existing `PromptComposer` enterprise-grade contracts. Hosted Workers AI `/drafts` and `/personas` call it internally; public `/prompts` for Grokbot retains the full contract and zero AI cost. `PersonaTextGenerator` appends its short identity-card transport when avatars are requested and asks Qwen3 to think before creating the final Markdown; avatar prompts continue to use the same resolved character identity.
