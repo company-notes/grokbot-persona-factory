@@ -1,0 +1,32 @@
+name: Workers AI Model Quality Benchmark
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/model-benchmark.yml'
+  workflow_dispatch:
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:test
+      - name: Test live Workers AI candidates on the same UTF-8 fixture
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/benchmark-models.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: workers-ai-model-comparison
+          path: model-benchmark-results/
+          if-no-files-found: warn
