@@ -1353,7 +1353,8 @@ test("hosted workplace MVP prioritizes user's distinctive personality over enter
   assert.match(call.input.messages[1].content,/小晴吃醋/);
   assert.match(call.input.messages[1].content,/ISTJ/);
   assert.match(call.input.messages[0].content,/NEVER change the requested job, personality, relationships, quirks/);
-  assert.match(call.input.messages[1].content,/不要強制三種事件/);
+  assert.match(call.input.messages[1].content,/## 工作職責與做事方式/);
+  assert.match(call.input.messages[1].content,/## 自主處理與授權界線/);
   assert.doesNotMatch(call.input.messages[1].content,/【公司 AI 員工輸出契約】|## 三種實際工作情境|三層權限/);
   assert.match(call.input.messages[1].content,/650～1100 字/);
   assert.match(call.input.messages[1].content,/\/no_think/);
@@ -1361,7 +1362,7 @@ test("hosted workplace MVP prioritizes user's distinctive personality over enter
   assert.equal(ai.calls.filter(x=>x.model.includes("flux")).length,1);
 });
 
-test("no-avatar hosted text also enables Qwen thinking, while /prompts still provides the full external contract",async()=>{
+test("no-avatar hosted text retains compact balanced outline, while /prompts still provides full external contract",async()=>{
   const app=new WorkerApplication(), ai=new FakeAI();
   const payload={presetId:"workplace",locale:"zh-hant",includeAvatar:false,values:{brief:"總經理秘書，說話有趣、愛吃醋但不失專業"}};
   const hosted=await app.fetch(request("/api/v1/drafts",payload,true),env(ai));
@@ -1381,8 +1382,8 @@ test("no-avatar hosted text also enables Qwen thinking, while /prompts still pro
 test("hosted MVP has light, distinct themes for assistant, character and NPC without workplace SOP",async()=>{
   const app=new WorkerApplication();
   for(const [presetId,brief,expected] of [
-    ["assistant","小禾，幫我處理行程與信件",/寄信、刪除/],
-    ["character","一位害羞的魔女，喜歡烘焙",/故事人物/],
+    ["assistant","小禾，幫我處理行程與信件",/寄信／刪除/],
+    ["character","一位害羞的魔女，喜歡烘焙",/## 個性、動機與關係/],
     ["npc","奇幻世界的賣藥草商人",/世界觀/]
   ]){
     const ai=new FakeAI();
@@ -1454,4 +1455,104 @@ test("bounded AI wrapper passes successful responses through unchanged",async()=
   const expected={response:"# 小禾\n\n28 歲個人助理。"};
   const binding=new BoundedAIBinding({run:async()=>expected},{totalMs:1000,perCallMs:500});
   assert.equal(await binding.run("@cf/qwen/qwen3-30b-a3b-fp8",{}),expected);
+});
+
+
+test("hosted workplace and assistant output contracts balance practical structure with character voice",async()=>{
+  const app=new WorkerApplication();
+  for(const [presetId,brief,headings,roleSpecific] of [
+    ["workplace","總經理秘書、大美女、ISTJ、暗戀總經理，會和小晴吃醋、風趣且認真",
+      ["## 身分與人格","## 工作職責與做事方式","## 自主處理與授權界線","## 工作情境","## 說話風格與範例"],"會和小晴吃醋"],
+    ["assistant","小禾，28 歲 INFP，幫忙管信件和行程，寄信或刪東西前先問",
+      ["## 身分、使命與個性","## 能協助的事","## 做事方式與授權","## 使用情境","## 說話風格與範例"],"寄信或刪東西前先問"]
+  ]){
+    const ai=new FakeAI();
+    const res=await app.fetch(request("/api/v1/drafts",{
+      presetId,locale:"zh-hant",includeAvatar:false,detailLevel:"standard",values:{brief}
+    },true),env(ai));
+    assert.equal(res.status,200);
+    const content=ai.calls[0].input.messages[1].content;
+    for(const heading of headings)assert.ok(content.includes(heading),presetId+": "+heading);
+    assert.ok(content.includes(roleSpecific));
+    assert.match(content,/標示為假設|標示為假設的/);
+    assert.match(content,/不要虛構|不虛構|Do not invent mandatory deadlines/);
+    assert.doesNotMatch(content,/每項重要職責.*輸入.*執行動作|三種實際工作情境|主管回報示例/);
+    assert.match(ai.calls[0].input.messages[0].content,/short vivid introduction, then clear sections/);
+    assert.match(ai.calls[0].input.messages[1].content,/\/no_think/);
+    assert.equal(ai.calls.length,1);
+  }
+});
+
+test("character and NPC use imaginative scene and interaction headings rather than workplace approvals",async()=>{
+  const app=new WorkerApplication();
+  for(const [presetId,brief,headings] of [
+    ["character","害羞的精靈魔女喜歡烘焙",
+      ["## 身分與背景","## 個性、動機與關係","## 行為習慣、能力與限制","## 情境片段","## 代表台詞"]],
+    ["npc","幻想城市裡販賣藥草的老商人",
+      ["## 身分與世界觀","## NPC 功能、目標與特色","## 與玩家互動","## 知識與能力限制","## 互動對話示例"]]
+  ]){
+    const ai=new FakeAI();
+    const result=await app.fetch(request("/api/v1/drafts",{
+      presetId,locale:"zh-hant",includeAvatar:false,values:{brief}
+    },true),env(ai));
+    assert.equal(result.status,200);
+    const prompt=ai.calls[0].input.messages[1].content;
+    for(const h of headings)assert.ok(prompt.includes(h),presetId+" missing "+h);
+    assert.doesNotMatch(prompt,/## 工作職責與做事方式|## 自主處理與授權界線/);
+  }
+});
+
+test("balanced hosted outlines are localized into English, Traditional and Simplified Chinese",async()=>{
+  const app=new WorkerApplication();
+  const examples=[
+    ["en","workplace","## Duties & work habits","## Autonomy & approvals"],
+    ["zh-hant","assistant","## 能協助的事","## 做事方式與授權"],
+    ["zh-hans","workplace","## 工作职责与做事方式","## 自主处理与授权边界"],
+    ["zh-hans","npc","## 与玩家互动","## 知识与能力限制"]
+  ];
+  for(const [locale,presetId,first,second] of examples){
+    const ai=new FakeAI();
+    const r=await app.fetch(request("/api/v1/drafts",{
+      presetId,locale,includeAvatar:false,values:{brief:"A personable, helpful fictional character"}
+    },true),env(ai));
+    assert.equal(r.status,200);
+    const prompt=ai.calls[0].input.messages[1].content;
+    assert.ok(prompt.includes(first),locale+":"+first);
+    assert.ok(prompt.includes(second),locale+":"+second);
+  }
+});
+
+test("balanced hosted brief applies short standard and full lengths without changing model budgets",async()=>{
+  const app=new WorkerApplication();
+  for(const [detailLevel,expected,budget] of [
+    ["concise","350～550 字",1600],
+    ["standard","650～1100 字",2600],
+    ["full","1200～1900 字",3600]
+  ]){
+    const ai=new FakeAI();
+    const r=await app.fetch(request("/api/v1/drafts",{
+      presetId:"assistant",locale:"zh-hant",detailLevel,includeAvatar:false,
+      values:{brief:"幫我安排會議並整理待辦"}
+    },true),env(ai));
+    assert.equal(r.status,200);
+    assert.ok(ai.calls[0].input.messages[1].content.includes(expected));
+    assert.equal(ai.calls[0].input.max_tokens,budget);
+  }
+});
+
+test("balanced hosted prompt preserves complete persona and photo identity from the same model call",async()=>{
+  const app=new WorkerApplication(),ai=new FakeAI();
+  const r=await app.fetch(request("/api/v1/drafts",{
+    presetId:"workplace",locale:"zh-hant",includeAvatar:true,avatarStyle:"realistic",
+    values:{brief:"大美女，暗戀總經理的秘書，說話風趣，29 歲，長捲髮"}
+  },true),env(ai));
+  assert.equal(r.status,200);
+  const result=await r.json();
+  assert.ok(result.resolvedIdentity);
+  const user=ai.calls[0].input.messages[1].content;
+  assert.match(user,/暗戀總經理/);
+  assert.match(user,/## 身分與人格/);
+  assert.match(user,/PERSONA_IDENTITY/);
+  assert.equal(ai.calls.filter(c=>!c.model.includes("flux")).length,1);
+  assert.equal(ai.calls.filter(c=>c.model.includes("flux")).length,1);
 });
