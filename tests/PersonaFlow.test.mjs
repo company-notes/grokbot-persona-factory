@@ -34,6 +34,18 @@ class FakeAI {
   }
 }
 
+async function avatarPromptFromCall(call) {
+  if (typeof call.input.prompt === "string") return call.input.prompt;
+  // FLUX.2 Klein receives multipart, not the legacy JSON prompt field.
+  const multipart = call.input.multipart;
+  assert.ok(multipart?.body);
+  const response = new Response(multipart.body, {
+    headers: { "Content-Type": multipart.contentType },
+  });
+  const form = await response.formData();
+  return String(form.get("prompt") ?? "");
+}
+
 function request(path, body, authorized = false) {
   const headers = { "content-type": "application/json" };
   if (authorized) {
@@ -381,7 +393,7 @@ test("realistic avatar uses an English model prompt while Grokbot API stays loca
     assert.equal(result.status, 200);
     const imageCall = testEnv.AI.calls.find((call) => call.model.includes("flux"));
     assert.ok(imageCall, "Image model should be invoked");
-    const modelPrompt = imageCall.input.prompt;
+    const modelPrompt = await avatarPromptFromCall(imageCall);
     assert.match(modelPrompt, /Photorealistic professional portrait/);
     assert.match(modelPrompt, /Exactly ONE original character/);
     assert.match(modelPrompt, /No extra people, no groups, no duplicate faces/);
@@ -401,7 +413,7 @@ test("pencil image-model prompt stays in English without affecting returned Chin
   assert.match((await api.json()).avatarPrompt, /鉛筆素描/);
   const response = await app.fetch(request("/api/v1/drafts", persona, true), env(ai));
   assert.equal(response.status, 200);
-  const modelPrompt = ai.calls.find((call) => call.model.includes("flux")).input.prompt;
+  const modelPrompt = await avatarPromptFromCall(ai.calls.find((call) => call.model.includes("flux")));
   assert.match(modelPrompt, /Expressive graphite pencil portrait sketch/);
   assert.doesNotMatch(modelPrompt, /Photorealistic professional portrait/);
 });
@@ -441,7 +453,7 @@ test("photoreal avatar explicitly excludes illustration, anime and fantasy costu
   const persona = JSON.parse(await readFile(new URL("./fixtures/YvonneLin.zh-hant.json", import.meta.url), "utf8"));
   const response = await app.fetch(request("/api/v1/drafts", persona, true), env(ai));
   assert.equal(response.status, 200);
-  const prompt = ai.calls.find((call) => call.model.includes("flux")).input.prompt;
+  const prompt = await avatarPromptFromCall(ai.calls.find((call) => call.model.includes("flux")));
   assert.match(prompt, /Photorealistic corporate headshot/);
   assert.match(prompt, /No illustration/);
   assert.match(prompt, /No anime/);
