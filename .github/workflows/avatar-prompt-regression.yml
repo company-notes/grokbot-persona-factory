@@ -1,8 +1,5 @@
 name: Avatar Prompt and UTF-8 Regression
 on:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/avatar-prompt-regression.yml']
   workflow_dispatch:
 jobs:
   tests:
