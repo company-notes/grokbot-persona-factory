@@ -21,11 +21,18 @@ const webRoot = path.resolve("public/web");
 
 const env = {
   AI: {
-    async run(model) {
+    async run(model, input) {
       if (model.includes("flux")) {
         return { image: btoa(String.fromCharCode(255, 216, 255, 217)) };
       }
-      return { response: "# 模擬人設\n\n## 工作方式\n目標、Owner、結果。" };
+      const markdown="# 模擬人設\\n\\n## 工作方式\\n目標、Owner、結果。";
+      if(input?.messages?.[0]?.content?.includes("MANDATORY API TRANSPORT FORMAT OVERRIDE")){
+        return {response:JSON.stringify({markdown,resolvedIdentity:{
+          gender:"female",age:"29",role:"秘書",appearance:"短髮、正式職場裝束",
+          personality:"自信、幽默",visualTone:"confident and composed"
+        }})};
+      }
+      return {response:markdown};
     },
   },
   ASSETS: {

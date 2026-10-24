@@ -50,7 +50,11 @@ export class HTTPClient {
     return this.request("/api/v1/personas", persona, true);
   }
 
-  package(persona, markdown, avatarBase64, avatarMimeType) {
-    return this.request("/api/v1/packages", { persona, markdown, avatarBase64, avatarMimeType }, true);
+  getAvatarPrompts(persona, markdown, resolvedIdentity) {
+    return this.request("/api/v1/avatar-prompts", { persona, markdown, resolvedIdentity });
+  }
+
+  package(persona, markdown, avatarBase64, avatarMimeType, resolvedIdentity = null) {
+    return this.request("/api/v1/packages", { persona, markdown, avatarBase64, avatarMimeType, ...(resolvedIdentity ? { resolvedIdentity } : {}) }, true);
   }
 }

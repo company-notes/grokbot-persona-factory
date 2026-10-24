@@ -1,6 +1,5 @@
 import type { PersonaRequest, PersonaPreset, PromptBundle } from "../Types.js";
-import { AvatarStyles } from "../avatar/AvatarStyles.js";
-import { AvatarRegionalContext } from "../avatar/AvatarRegionalContext.js";
+import { AvatarPromptComposer } from "../avatar/AvatarPromptComposer.js";
 import { PersonaVisualIdentity } from "./PersonaVisualIdentity.js";
 import { PersonaQualityPolicy } from "./PersonaQualityPolicy.js";
 import { PersonaOutputContract } from "./PersonaOutputContract.js";
@@ -14,7 +13,6 @@ interface PromptCopy {
   brief: string;
   revising: string;
   revision: string;
-  avatar: (name: string, gender: string, age: string, appearance: string, mood: string) => string;
   anonymous: string;
   unknown: string;
 }
@@ -33,7 +31,6 @@ const copy: Record<Locale, PromptCopy> = {
     specification: "Selected persona set", direction: "Preset guidance", details: "User-specified details (must be preserved)", brief: "Initial idea",
     revising: "Revise the following existing Markdown. Keep its structure and unrelated information; preserve all user-specified facts. Make only the requested changes.",
     revision: "Requested revisions", anonymous: "Unnamed AI teammate", unknown: "unspecified",
-    avatar: (name, gender, age, appearance, mood) => `A single original fictional AI character portrait. Character: ${name}. Gender presentation: ${gender}. Age appearance: ${age}. Appearance: ${appearance}. Persona mood: ${mood}. Professional head-and-shoulders composition, natural expression, attractive but nonsexualized, soft light, square-safe crop, no text, logos or watermark.`,
   },
   "zh-hant": {
     system: [
@@ -48,7 +45,6 @@ const copy: Record<Locale, PromptCopy> = {
     specification: "選用的人設範本", direction: "範本設計重點", details: "使用者指定資料（必須保留）", brief: "最初構想",
     revising: "請修改下列既有 Markdown 人設。保留原有架構與無關內容，所有使用者指定資料必須保持不變；只依要求修改相關部分。",
     revision: "本次修改要求", anonymous: "未命名 AI 夥伴", unknown: "未指定",
-    avatar: (name, gender, age, appearance, mood) => `單一原創虛構 AI 角色肖像，角色：${name}。性別呈現：${gender}。外觀年齡：${age}。形象：${appearance}。氣質：${mood}。專業的肩部以上肖像、自然表情、柔和光線、方形裁切安全、不情色化、不含文字、商標或浮水印。`,
   },
   "zh-hans": {
     system: [
@@ -63,20 +59,18 @@ const copy: Record<Locale, PromptCopy> = {
     specification: "选用的人设模板", direction: "模板设计重点", details: "用户指定信息（必须保留）", brief: "最初构想",
     revising: "请修改下面的已有 Markdown 人设。保留原有结构与无关内容，用户指定信息必须保持不变；只按要求修改相关部分。",
     revision: "本次修改要求", anonymous: "未命名 AI 伙伴", unknown: "未指定",
-    avatar: (name, gender, age, appearance, mood) => `单个原创虚构 AI 角色肖像，角色：${name}。性别呈现：${gender}。外观年龄：${age}。形象：${appearance}。气质：${mood}。专业的肩部以上肖像、自然表情、柔和光线、适合方形裁剪、不情色化、不含文字、商标或水印。`,
   },
 };
 
 export class PromptComposer {
-  private readonly styles = new AvatarStyles();
-  private readonly regional = new AvatarRegionalContext();
+  private readonly avatar = new AvatarPromptComposer();
   private readonly quality = new PersonaQualityPolicy();
   private readonly outputContract = new PersonaOutputContract();
 
   compose(persona: PersonaRequest, preset: PersonaPreset): PromptBundle {
     const locale = persona.locale as Locale;
     const messages = copy[locale];
-    const identity = new PersonaVisualIdentity(persona);
+    const identity = PersonaVisualIdentity.fromInput(persona);
     const details = preset.fields
       .filter((field) => field.id !== "brief" && persona.values[field.id])
       .map((field) => `- ${field.label}：${field.id === "gender"
@@ -102,26 +96,10 @@ export class PromptComposer {
       );
     }
 
-    const style = this.styles.describe(this.styles.require(persona.avatarStyle), locale);
-    const regionalHint = this.regional.guidance(persona).localized;
-    const genderLabel = ({
-      en: { female: "woman", male: "man", nonbinary: "nonbinary", unspecified: messages.unknown },
-      "zh-hant": { female: "女性", male: "男性", nonbinary: "非二元", unspecified: messages.unknown },
-      "zh-hans": { female: "女性", male: "男性", nonbinary: "非二元", unspecified: messages.unknown },
-    })[locale][identity.gender];
-    const avatarPrompt = [
-      identity.localizedImageAnchor(locale),
-      style,
-      regionalHint,
-      messages.avatar(
-        displayName,
-        genderLabel,
-        identity.age || messages.unknown,
-        identity.appearance || messages.unknown,
-        identity.personality || messages.unknown,
-      ).slice(0, 1050),
-      identity.role ? identity.textAnchor(locale) : "",
-    ].filter(Boolean).join(" ").slice(0, 2048);
+    // A preview from explicit form facts only. Final avatar prompts MUST be
+    // rebuilt after the model or local Grokbot returns resolvedIdentity.
+    const avatarPrompt = this.avatar.composeLocalized(persona, locale);
+
     const grokbotIntro = {
       en: "Please create a complete, practical, evergreen AI assistant persona for Grokbot in English, formatted as Markdown. Respect every specified fact, keep personality separate from job responsibilities and authority, and include natural example responses. Here are the requirements:",
       "zh-hant": "請幫我為 Grokbot 建立一位 AI 助理的人設，使用繁體中文輸出可直接使用的完整 Markdown。保留我指定的資料，清楚區分人格、職責和權限，包含自然的說話範例。需求如下：",
@@ -132,9 +110,14 @@ export class PromptComposer {
       "zh-hant": "選擇產生頭像時的視覺指引（僅供圖像使用，不可把語言預設當作人物已確認國籍）：",
       "zh-hans": "选择生成头像时的视觉指引（仅用于图像，不可把语言预设当作人物已确认国籍）：",
     }[locale];
+    const localIdentityGuidance = ({
+      en: "When creating an avatar, first finish the Markdown AND separately create a JSON resolvedIdentity card with gender (female/male/nonbinary), age, appearance, origin, role, personality and visualTone. Semantically interpret the user's full request. If no gender is specified for a fictional character, choose one consistently in both results; never infer from a name. The preview avatar prompt above is preliminary. POST {persona, markdown, resolvedIdentity} to /api/v1/avatar-prompts for the FINAL image prompt, at no Workers AI cost. Do not put the JSON card inside persona.md.",
+      "zh-hant": "如需頭像，請先依完整需求語意產生 Markdown 人設，並另行產生 JSON resolvedIdentity 人物卡（gender 使用 female／male／nonbinary；另含 age、appearance、origin、role、personality、visualTone）。未指定的虛構角色性別可由本地 AI 決定，但人設與人物卡必須一致，不得憑姓名猜測。上方頭像提示僅是預覽；完成後呼叫零 AI 的 POST /api/v1/avatar-prompts，帶入 {persona, markdown, resolvedIdentity} 取得最終圖片提示；人物卡不要混進 persona.md。",
+      "zh-hans": "如需头像，请先理解完整需求并生成 Markdown 人设，另生成 JSON resolvedIdentity 人物卡（gender 为 female/male/nonbinary，含 age、appearance、origin、role、personality、visualTone）。若虚构角色未指定性别，本地 AI 可以选一个，但人设与人物卡必须一致，不凭姓名猜。上面头像提示只是预览；完成后调用零 AI 的 POST /api/v1/avatar-prompts，提交 {persona, markdown, resolvedIdentity} 取得最终图片提示。人物卡不要放进 persona.md。",
+    })[locale];
     const grokbotPrompt = [
       grokbotIntro, messages.system.join("\n"), ...userSections,
-      ...(persona.includeAvatar === true ? [avatarSectionTitle, avatarPrompt] : []),
+      ...(persona.includeAvatar === true ? [avatarSectionTitle, avatarPrompt,localIdentityGuidance] : []),
     ].join("\n\n");
 
     return {

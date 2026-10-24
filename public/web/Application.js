@@ -17,6 +17,8 @@ class PersonaApplication {
     this.draftPersona = null;
     this.draftAvatar = null;
     this.avatarReviewStatus = null;
+    this.draftIdentity = null;
+    this.draftMarkdownAtAvatar = null;
     this.promptPersona = null;
     this.quota = null;
   }
@@ -148,16 +150,7 @@ class PersonaApplication {
     if (persona) {
       persona.avatarStyle = document.getElementById("avatarStyle").value;
       persona.detailLevel = document.getElementById("detailLevel").value;
-      // A photoreal face without any gender details can disagree with the
-      // persona text. Ask instead of guessing a gender from the name.
-      const brief = persona.values.brief || "";
-      const explicitInBrief = /女性|男性|女生|男生|女主管|男主管|女助理|男助理|女客服|男客服|\bfemale\b|\bmale\b|\bwoman\b|\bman\b/i.test(brief);
-      if (persona.includeAvatar && persona.avatarStyle === "realistic" &&
-          !persona.values.gender && !explicitInBrief) {
-        this._setFormMode("advanced");
-        this._status(this.i18n.text("status.avatarGenderNeeded"), true);
-        return null;
-      }
+
     }
     if (!persona) {
       this._status(this.i18n.text("status.required"), true);
@@ -179,6 +172,8 @@ class PersonaApplication {
         const draft = await this.http.draft(persona);
         this.draftPersona = persona;
         this.avatarReviewStatus = draft.avatarReviewStatus || null;
+        this.draftIdentity = draft.resolvedIdentity || null;
+        this.draftMarkdownAtAvatar = draft.avatarBase64 ? draft.markdown : null;
         this.draftAvatar = draft.avatarBase64 && draft.avatarMimeType
           ? { base64: draft.avatarBase64, mimeType: draft.avatarMimeType }
           : null;
@@ -258,8 +253,10 @@ class PersonaApplication {
       return;
     }
     const uploadedAvatar = document.getElementById("draftAvatarUpload").files[0];
-    const avatar = uploadedAvatar ? await this._readAvatar(uploadedAvatar) : this.draftAvatar;
-    await this._downloadPackage(this.draftPersona, markdown, avatar, "downloadDraft");
+    const isStale = !uploadedAvatar && this.draftAvatar && this.draftMarkdownAtAvatar !== markdown;
+    const avatar = uploadedAvatar ? await this._readAvatar(uploadedAvatar) : isStale ? null : this.draftAvatar;
+    if (isStale) this._status(this.i18n.text("result.avatarStale"), true);
+    await this._downloadPackage(this.draftPersona, markdown, avatar, "downloadDraft", isStale ? null : this.draftIdentity);
   }
 
   async _packageExternal() {
@@ -286,14 +283,14 @@ class PersonaApplication {
     }
   }
 
-  async _downloadPackage(persona, markdown, avatar, buttonId) {
+  async _downloadPackage(persona, markdown, avatar, buttonId, resolvedIdentity = null) {
     const button = buttonId ? document.getElementById(buttonId) : null;
     if (button) {
       button.disabled = true;
     }
     this._status(this.i18n.text("status.packaging"));
     try {
-      const zip = await this.http.package(persona, markdown, avatar?.base64, avatar?.mimeType);
+      const zip = await this.http.package(persona, markdown, avatar?.base64, avatar?.mimeType, resolvedIdentity);
       this._download(zip);
       this._status(this.i18n.text("status.packageReady"));
     } catch (error) {

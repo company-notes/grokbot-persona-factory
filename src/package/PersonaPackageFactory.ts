@@ -1,5 +1,6 @@
 import { ZipArchive, type ZipEntry } from "./ZipArchive.js";
 import type { PersonaRequest, PromptBundle } from "../Types.js";
+import type { ResolvedIdentity } from "../persona/PersonaVisualIdentity.js";
 import { ValidationError } from "../Errors.js";
 
 export interface AvatarAsset {
@@ -11,7 +12,7 @@ export class PersonaPackageFactory {
   private readonly zip = new ZipArchive();
   private readonly encoder = new TextEncoder();
 
-  create(persona: PersonaRequest, prompt: PromptBundle, markdown: string, avatar?: AvatarAsset): Uint8Array {
+  create(persona: PersonaRequest, prompt: PromptBundle, markdown: string, avatar?: AvatarAsset, resolvedIdentity?: ResolvedIdentity): Uint8Array {
     const metadata = {
       version: 1,
       presetId: prompt.presetId,
@@ -20,6 +21,7 @@ export class PersonaPackageFactory {
       locale: persona.locale,
       avatarStyle: persona.avatarStyle,
       hasAvatar: Boolean(avatar),
+      ...(resolvedIdentity ? { resolvedIdentity } : {}),
       generator: "grokbot-persona-factory",
     };
     const entries: ZipEntry[] = [

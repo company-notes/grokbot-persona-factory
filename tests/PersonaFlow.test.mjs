@@ -30,7 +30,23 @@ class FakeAI {
       return { image: btoa(String.fromCharCode(0xff, 0xd8, 0xff, 0xd9)) };
     }
 
-    return { response: "# 小晴\n\n## 核心定位\n總經理特助，重視職責和溝通。" };
+    const markdown = "# 小晴\\n\\n## 核心定位\\n總經理特助，重視職責和溝通。";
+    if (input?.messages?.[0]?.content?.includes("MANDATORY API TRANSPORT FORMAT OVERRIDE")) {
+      const user = input.messages[1].content;
+      const gender = /Gender \\/ 性別：male/.test(user) ? "male" :
+        /Gender \\/ 性別：nonbinary/.test(user) ? "nonbinary" : "female";
+      const age = user.match(/Age \\/ 年齡：([^\\n]+)/)?.[1] || "";
+      return { response: JSON.stringify({
+        markdown,
+        resolvedIdentity: {
+          name:"小晴",gender,age,role:"總經理特助",
+          appearance:"短髮，深藍色西裝外套",
+          personality:"細心、沉穩，專業",
+          visualTone:"calm and confident, approachable",
+        },
+      }) };
+    }
+    return { response: markdown };
   }
 }
 
@@ -500,7 +516,7 @@ test("detail level is validated and all three locales generate preset-specific g
 
 test("Workers AI respects the requested detail and workplace generation stability", async () => {
   const app = new WorkerApplication();
-  for (const [detailLevel, tokens] of [["concise", 1900], ["standard", 3400], ["full", 4200]]) {
+  for (const [detailLevel, tokens] of [["concise", 2600], ["standard", 4500], ["full", 5900]]) {
     const ai = new FakeAI();
     const res = await app.fetch(request("/api/v1/personas", { ...samplePersona, detailLevel }, true), env(ai));
     assert.equal(res.status, 200);
@@ -594,7 +610,7 @@ test("new default model selection uses Qwen3 and FLUX.2 Klein with multipart", a
   }, true), env(ai));
   assert.equal(response.status, 200);
   assert.equal(ai.calls[0].model, "@cf/qwen/qwen3-30b-a3b-fp8");
-  assert.equal(ai.calls[0].input.max_tokens, 3400);
+  assert.equal(ai.calls[0].input.max_tokens, 4500);
   assert.equal(ai.calls.length, 2);
   assert.equal(ai.calls[1].model, "@cf/black-forest-labs/flux-2-klein-4b");
   assert.match(ai.calls[1].input.multipart.contentType, /^multipart\/form-data; boundary=/);
@@ -815,9 +831,9 @@ test("photographic avatar and Markdown share exactly the same identity facts", a
   const response = await app.fetch(request("/api/v1/prompts", persona), env(ai));
   assert.equal(response.status, 200);
   const prompts = await response.json();
-  assert.match(prompts.userPrompt, /文字人設與頭像共用的角色事實/);
+  assert.match(prompts.userPrompt, /使用者明確指定的角色事實/);
   assert.match(prompts.userPrompt, /Gender \/ 性別：女性/);
-  assert.match(prompts.userPrompt, /年齡：34/);
+  assert.match(prompts.userPrompt, /Age \\/ 年齡：34/);
   assert.match(prompts.userPrompt, /深藍色西裝外套/);
   assert.match(prompts.userPrompt, /客服主管/);
   assert.match(prompts.avatarPrompt, /只有一位成年女性，不可畫成男性/);
@@ -836,33 +852,41 @@ test("photographic avatar and Markdown share exactly the same identity facts", a
   assert.match(imagePrompt, /calm and confident/);
 });
 
-test("gender from an explicit brief is reused in text and visual prompt without guessing from name", async () => {
+test("model interprets natural-language gender after text generation; no fixed-word parser needed", async () => {
   const app = new WorkerApplication();
-  for (const [brief, expected, opposite] of [
-    ["34 歲女性客服主管，細心、沉穩", /Exactly ONE adult WOMAN/, /Exactly ONE adult MAN/],
-    ["40 歲男工程師，認真", /Exactly ONE adult MAN/, /Exactly ONE adult WOMAN/],
-    ["A 29 years old female project leader", /Exactly ONE adult WOMAN/, /Exactly ONE adult MAN/],
+  for (const [brief, gender, age] of [
+    ["大美女，一個暗戀總經理的秘書", "female", "29"],
+    ["40 歲男工程師，認真", "male", "40"],
+    ["An amazing professional without gender cues", "female", "35"],
   ]) {
-    const ai = new FakeAI();
-    const input = {presetId:"workplace", locale:"zh-hant", avatarStyle:"realistic", includeAvatar:true, values:{ brief }};
-    const prompt = await app.fetch(request("/api/v1/prompts", input), env(ai));
-    assert.equal(prompt.status, 200);
-    const data = await prompt.json();
-    assert.match(data.userPrompt, /文字人設與頭像共用的角色事實/);
-    assert.match(data.avatarPrompt, /外觀年齡約/);
-    const draft = await app.fetch(request("/api/v1/drafts", input, true), env(ai));
-    assert.equal(draft.status, 200);
-    const imagePrompt = await avatarPromptFromCall(ai.calls.find(c=>c.model.includes("flux")));
-    assert.match(imagePrompt, expected);
-    assert.doesNotMatch(imagePrompt, opposite);
+    class SemanticAI extends FakeAI {
+      async run(model, input) {
+        if (!model.includes("flux") && input?.messages?.[0]?.content?.includes("MANDATORY API TRANSPORT FORMAT OVERRIDE")) {
+          this.calls.push({model,input});
+          return {response:JSON.stringify({
+            markdown:`# 虛構角色\\n\\n此人設定為${gender === "female" ? "女性" : "男性"}，${age} 歲。`,
+            resolvedIdentity:{gender,age,appearance:"短髮，職場穿著",role:"秘書",visualTone:"confident and playful"},
+          })};
+        }
+        return super.run(model,input);
+      }
+    }
+    const ai=new SemanticAI();
+    const persona={presetId:"workplace",locale:"zh-hant",avatarStyle:"realistic",includeAvatar:true,values:{brief}};
+    const before = await app.fetch(request("/api/v1/prompts",persona),env(ai));
+    assert.equal(before.status,200);
+    assert.match((await before.json()).avatarPrompt,/畫面只有一位成年人物/);
+    assert.equal(ai.calls.length,0);
+    const result=await app.fetch(request("/api/v1/drafts",persona,true),env(ai));
+    assert.equal(result.status,200);
+    const data=await result.json();
+    assert.equal(data.resolvedIdentity.gender,gender);
+    assert.equal(data.resolvedIdentity.age,age);
+    const imagePrompt=await avatarPromptFromCall(ai.calls.find(c=>c.model.includes("flux")));
+    assert.match(imagePrompt,gender === "female" ? /Exactly ONE adult WOMAN/ : /Exactly ONE adult MAN/);
+    assert.match(imagePrompt,new RegExp("appears "+age+" years old"));
+    assert.equal(ai.calls.length,2);
   }
-  const noGender = await app.fetch(request("/api/v1/prompts", {
-    presetId: "workplace", locale: "en", avatarStyle: "realistic", includeAvatar: true,
-    values: { name: "Alex", brief: "A careful manager" },
-  }), env(new FakeAI()));
-  const output = await noGender.json();
-  assert.match(output.userPrompt, /not specified \(do not guess\)/);
-  assert.match(output.avatarPrompt, /gender is not specified/i);
 });
 
 test("review flags an inconsistent woman portrait, regenerates it once and reports revision", async () => {
@@ -936,4 +960,103 @@ test("vision review unavailable yields unverified rather than claiming an avatar
   assert.equal(data.avatarReviewStatus,"unverified");
   assert.ok(data.avatarBase64);
   assert.equal(ai.calls.filter(c=>c.model.includes("flux")).length,1);
+});
+
+test("external Grokbot resolves a persona and obtains its FINAL avatar prompt at zero AI cost", async () => {
+  const app=new WorkerApplication(), ai=new FakeAI();
+  const persona={presetId:"workplace",locale:"zh-hant",includeAvatar:true,avatarStyle:"realistic",
+    values:{brief:"大美女，能力很強的總經理秘書，說話有趣"}};
+  const preview=await app.fetch(request("/api/v1/prompts",persona),env(ai));
+  assert.equal(preview.status,200);
+  assert.match((await preview.json()).grokbotPrompt,/api\/v1\/avatar-prompts/);
+  const identity={gender:"female",age:"29",appearance:"深棕色短髮，正式職場穿著",
+    role:"總經理秘書",personality:"專業又幽默",visualTone:"confident, friendly with a playful smile"};
+  const response=await app.fetch(request("/api/v1/avatar-prompts",{
+    persona,markdown:"# 新秘書\\n\\n女性，29 歲。",resolvedIdentity:identity
+  }),env(ai));
+  assert.equal(response.status,200);
+  const p=await response.json();
+  assert.equal(p.resolvedIdentity.gender,"female");
+  assert.match(p.avatarPrompt,/只有一位成年女性/);
+  assert.match(p.imageModelPrompt,/Exactly ONE adult WOMAN/);
+  assert.match(p.imageModelPrompt,/appears 29 years old/);
+  assert.match(p.imageModelPrompt,/confident, friendly with a playful smile/);
+  assert.equal(ai.calls.length,0);
+});
+
+test("avatar-prompts rejects missing, malformed or conflicting identity without AI cost",async()=>{
+  const app=new WorkerApplication(), ai=new FakeAI();
+  const persona={...samplePersona,values:{...samplePersona.values,gender:"女性"}};
+  for(const data of [
+    {persona,markdown:"# 女主管"},
+    {persona,markdown:"# 女主管",resolvedIdentity:{gender:"male"}},
+    {persona,markdown:"# 女主管",resolvedIdentity:{gender:"female",age:123}},
+    {persona,markdown:"",resolvedIdentity:{gender:"female"}},
+  ]){
+    const result=await app.fetch(request("/api/v1/avatar-prompts",data),env(ai));
+    assert.equal(result.status,400);
+  }
+  assert.equal(ai.calls.length,0);
+});
+
+test("Workers AI resolves identity before generating FLUX imagery in one text call",async()=>{
+  const app=new WorkerApplication(),ai=new FakeAI();
+  const resp=await app.fetch(request("/api/v1/drafts",{
+    ...samplePersona,includeAvatar:true,avatarStyle:"realistic",values:{brief:"有才華的秘書"}
+  },true),env(ai));
+  assert.equal(resp.status,200);
+  const data=await resp.json();
+  assert.equal(data.resolvedIdentity.gender,"female");
+  assert.match(data.markdown,/核心定位/);
+  assert.deepEqual(ai.calls.map(x=>x.model),["@cf/qwen/qwen3-30b-a3b-fp8","@cf/black-forest-labs/flux-2-klein-4b"]);
+  assert.match(ai.calls[0].input.messages[0].content,/MANDATORY API TRANSPORT FORMAT OVERRIDE/);
+  const prompt=await avatarPromptFromCall(ai.calls[1]);
+  assert.match(prompt,/Exactly ONE adult WOMAN/);
+});
+
+test("incomplete AI identity fails closed before any image request",async()=>{
+  class IncompleteAI extends FakeAI {
+    async run(model,input){
+      if(model.includes("flux"))throw Error("Unexpected image request");
+      this.calls.push({model,input});
+      return {response:JSON.stringify({markdown:"# Unresolved",resolvedIdentity:{gender:"unspecified"}})};
+    }
+  }
+  const ai=new IncompleteAI();
+  const resp=await new WorkerApplication().fetch(request("/api/v1/drafts",{
+    ...samplePersona,includeAvatar:true
+  },true),env(ai));
+  assert.equal(resp.status,503);
+  assert.equal((await resp.json()).errorCode,"AI_UNAVAILABLE");
+  assert.equal(ai.calls.filter(x=>x.model.includes("flux")).length,0);
+});
+
+test("existing Markdown-only generators remain compatible with text-only revisions",async()=>{
+  const ai=new FakeAI();
+  const resp=await new WorkerApplication().fetch(request("/api/v1/drafts",{
+    ...samplePersona,includeAvatar:false,existingMarkdown:"# 小晴",revisionInstructions:"修改說話方式"
+  },true),env(ai));
+  assert.equal(resp.status,200);
+  assert.match((await resp.json()).markdown,/核心定位/);
+  assert.equal(ai.calls.length,1);
+});
+
+test("external persona ZIP stores a supplied resolvedIdentity without calling AI",async()=>{
+  const ai=new FakeAI();
+  const card={gender:"female",age:"29",role:"秘書",visualTone:"confident",source:"ai"};
+  const resp=await new WorkerApplication().fetch(request("/api/v1/packages",{
+    persona:{...samplePersona,includeAvatar:false},
+    markdown:"# 小晴\\n\\n29 歲女性秘書",resolvedIdentity:card
+  },true),env(ai));
+  assert.equal(resp.status,200);
+  const bytes=new Uint8Array(await resp.arrayBuffer()),view=new DataView(bytes.buffer);
+  let pos=0,manifest=null;
+  while(pos<bytes.byteLength && view.getUint32(pos,true)===0x04034b50){
+    const len=view.getUint32(pos+18,true),nameLen=view.getUint16(pos+26,true),extraLen=view.getUint16(pos+28,true);
+    const name=new TextDecoder().decode(bytes.subarray(pos+30,pos+30+nameLen));
+    if(name==="manifest.json")manifest=JSON.parse(new TextDecoder().decode(bytes.subarray(pos+30+nameLen+extraLen,pos+30+nameLen+extraLen+len)));
+    pos+=30+nameLen+extraLen+len;
+  }
+  assert.equal(manifest.resolvedIdentity.gender,"female");
+  assert.equal(ai.calls.length,0);
 });

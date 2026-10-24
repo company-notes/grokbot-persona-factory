@@ -1,3 +1,5 @@
+import type { ResolvedIdentity } from "./persona/PersonaVisualIdentity.js";
+
 export interface Env {
   AI: AiBinding;
   ASSETS: { fetch(request: Request): Promise<Response> };
@@ -52,9 +54,16 @@ export interface PromptBundle {
   grokbotPrompt: string;
 }
 
+export interface AvatarPromptRequest {
+  persona: PersonaRequest;
+  markdown: string;
+  resolvedIdentity: ResolvedIdentity;
+}
+
 export interface PackageRequest {
   persona: PersonaRequest;
   markdown: string;
   avatarBase64?: string;
   avatarMimeType?: "image/jpeg" | "image/png" | "image/webp";
+  resolvedIdentity?: ResolvedIdentity;
 }

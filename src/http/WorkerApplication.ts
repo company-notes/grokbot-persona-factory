@@ -5,7 +5,7 @@ import { PersonaValidator } from "../persona/PersonaValidator.js";
 import { PromptComposer } from "../persona/PromptComposer.js";
 import { QuotaService } from "../quota/QuotaService.js";
 import { RequestAuthorizer } from "../security/RequestAuthorizer.js";
-import type { Env, PackageRequest, PersonaRequest } from "../Types.js";
+import type { Env, PackageRequest, PersonaRequest, AvatarPromptRequest } from "../Types.js";
 import { HTTPError } from "./HTTPError.js";
 import { AIUnavailableError, ValidationError } from "../Errors.js";
 import { Localization } from "../i18n/Localization.js";
@@ -61,13 +61,18 @@ export class WorkerApplication {
       const persona = await this._readJSON<PersonaRequest>(request, 40_000);
       return this._json(this.service.getPrompts(persona).prompts);
     }
+    if (path === "/api/v1/avatar-prompts" && request.method === "POST") {
+      const input = await this._readJSON<AvatarPromptRequest>(request, 60_000);
+      // Deterministic formatting only: NO Workers AI call and NO site credit.
+      return this._json(this.service.getAvatarPrompts(input));
+    }
     if (path === "/api/v1/drafts" && request.method === "POST") {
       await this.authorizer.authorize(request, env, path);
       const persona = await this._readJSON<PersonaRequest>(request, 70_000);
       await this._reserveForPersona(env, persona);
       const draft = await this.service.draft(persona, env);
       const avatarBase64 = draft.avatarBytes ? this._base64(draft.avatarBytes) : undefined;
-      return this._json({ markdown: draft.markdown, avatarBase64, avatarMimeType: draft.avatarMimeType, avatarReviewStatus: draft.avatarReviewStatus });
+      return this._json({ markdown: draft.markdown, avatarBase64, avatarMimeType: draft.avatarMimeType, avatarReviewStatus: draft.avatarReviewStatus, resolvedIdentity: draft.resolvedIdentity });
     }
     if (path === "/api/v1/personas" && request.method === "POST") {
       await this.authorizer.authorize(request, env, path);

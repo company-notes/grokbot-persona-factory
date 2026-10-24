@@ -95,6 +95,22 @@ class PersonaBrowserTest(unittest.TestCase):
             browser.close()
             self.assertTrue(screenshot.is_file())
 
+    def testBeautyBriefWithRealisticAvatarDoesNotBlockForGender(self):
+        # The site must trust AI interpretation, never a fixed gender lexicon.
+        with sync_playwright() as playwright:
+            browser=playwright.chromium.launch(headless=True,args=["--no-sandbox"])
+            page=browser.new_page()
+            page.goto("http://127.0.0.1:8788/")
+            page.locator(".presetCard").first.wait_for()
+            page.locator("#field-brief").fill("大美女，一個暗戀總經理的秘書，專業又幽默")
+            page.locator("#includeAvatar").check(force=True)
+            page.locator("#avatarStyle").select_option("realistic")
+            page.locator("#mainAction").click()
+            page.wait_for_function("document.querySelector('#draftMarkdown').value.includes('模擬人設')")
+            self.assertTrue(page.locator("#draftAvatarPreview").is_visible())
+            self.assertNotIn("需要明確人物性別",page.locator("#status").inner_text())
+            browser.close()
+
 
 if __name__ == "__main__":
     unittest.main()

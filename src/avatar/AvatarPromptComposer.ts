@@ -1,6 +1,8 @@
 import type { PersonaRequest } from "../Types.js";
 import { AvatarStyles } from "./AvatarStyles.js";
 import { PersonaVisualIdentity } from "../persona/PersonaVisualIdentity.js";
+import type { Locale } from "../i18n/Localization.js";
+import { AvatarRegionalContext } from "./AvatarRegionalContext.js";
 
 /**
  * Builds an English, image-model-oriented prompt independently of the
@@ -12,9 +14,8 @@ import { PersonaVisualIdentity } from "../persona/PersonaVisualIdentity.js";
 export class AvatarPromptComposer {
   constructor(private readonly styles = new AvatarStyles()) {}
 
-  compose(persona: PersonaRequest): string {
+  compose(persona: PersonaRequest, identity = PersonaVisualIdentity.fromInput(persona)): string {
     const style = this.styles.require(persona.avatarStyle);
-    const identity = new PersonaVisualIdentity(persona);
     const fixed = [
       identity.englishAnchor(),
       this.styles.describe(style, "en"),
@@ -30,6 +31,27 @@ export class AvatarPromptComposer {
     // separately so long names or personality text cannot erase gender/age rules.
     const details = identity.englishDetails();
     return [fixed, details].join(" ").slice(0, 2000);
+  }
+
+  /** Human-readable/localized prompt; the actual FLUX prompt is compose(). */
+  composeLocalized(persona: PersonaRequest, locale: Locale, identity = PersonaVisualIdentity.fromInput(persona)): string {
+    const style = this.styles.describe(this.styles.require(persona.avatarStyle), locale);
+    const visualPersona = { ...persona, values: { ...persona.values, origin: identity.origin, appearance: identity.appearance } };
+    const regional = new AvatarRegionalContext().guidance(visualPersona).localized;
+    const copy = ({
+      en: "Single fictional person headshot portrait. Match the completed persona exactly; no other people, text or watermarks.",
+      "zh-hant": "單一原創虛構人物肖像，必須與完成的人設為同一個人；不得增加其他人物、文字或浮水印。",
+      "zh-hans": "单个原创虚构人物肖像，必须与完成的人设是同一个人物；不得出现其他人物、文字或水印。",
+    })[locale];
+    return [
+      identity.localizedImageAnchor(locale),
+      style,regional,copy,
+      identity.name ? `Name / 姓名：${identity.name}` : "",
+      identity.appearance ? `Appearance / 外貌：${identity.appearance}` : "",
+      identity.role ? `Role / 職務：${identity.role}` : "",
+      identity.personality ? `Persona / 人格：${identity.personality}` : "",
+      identity.visualTone ? `Demeanor / 氣質：${identity.visualTone}` : "",
+    ].filter(Boolean).join(" ").slice(0,2048);
   }
 
 }
