@@ -1060,3 +1060,39 @@ test("external persona ZIP stores a supplied resolvedIdentity without calling AI
   assert.equal(manifest.resolvedIdentity.gender,"female");
   assert.equal(ai.calls.length,0);
 });
+
+test("explicit age in persona has priority and mismatching model cards are rejected",async()=>{
+  const ai=new FakeAI(),app=new WorkerApplication();
+  const persona={...samplePersona,values:{...samplePersona.values,age:"52",gender:"女性"}};
+  const result=await app.fetch(request("/api/v1/avatar-prompts",{
+    persona,markdown:"# 林雅雯\\n\\n52 歲",
+    resolvedIdentity:{gender:"female",age:"35",appearance:"深棕色短髮"}
+  }),env(ai));
+  assert.equal(result.status,400);
+  assert.equal(ai.calls.length,0);
+});
+
+test("a text model returning plain Markdown can recover its identity with an extra AI extraction call",async()=>{
+  class RepairingAI extends FakeAI {
+    async run(model,input){
+      if(model.includes("flux"))return super.run(model,input);
+      this.calls.push({model,input});
+      if(input.messages?.[0]?.content?.startsWith("MANDATORY API TRANSPORT FORMAT OVERRIDE")){
+        return {response:JSON.stringify({
+          markdown:"# 新秘書\\n\\n女性，29 歲，專業幽默。",
+          resolvedIdentity:{gender:"female",age:"29",role:"秘書",visualTone:"composed"}
+        })};
+      }
+      return {response:"# 新秘書\\n\\n女性，29 歲，專業幽默。"};
+    }
+  }
+  const ai=new RepairingAI();
+  const response=await new WorkerApplication().fetch(request("/api/v1/drafts",{
+    presetId:"workplace",locale:"zh-hant",includeAvatar:true,avatarStyle:"realistic",
+    values:{brief:"很有魅力的秘書"}
+  },true),env(ai));
+  assert.equal(response.status,200);
+  assert.equal((await response.json()).resolvedIdentity.gender,"female");
+  assert.equal(ai.calls.filter(c=>!c.model.includes("flux")).length,2);
+  assert.equal(ai.calls.filter(c=>c.model.includes("flux")).length,1);
+});

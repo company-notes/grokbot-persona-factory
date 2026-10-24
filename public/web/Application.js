@@ -150,7 +150,6 @@ class PersonaApplication {
     if (persona) {
       persona.avatarStyle = document.getElementById("avatarStyle").value;
       persona.detailLevel = document.getElementById("detailLevel").value;
-
     }
     if (!persona) {
       this._status(this.i18n.text("status.required"), true);

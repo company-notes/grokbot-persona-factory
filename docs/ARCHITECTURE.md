@@ -1,41 +1,81 @@
-# Architecture and boundaries
+# Persona Forge architecture and boundaries
+
+## Core principle
+
+**One fictional character, one resolved identity.** Markdown is generated first,
+and the portrait prompt is created only after the text model supplies the
+matching structured `resolvedIdentity`. No production module tries to
+infer gender from a dictionary of phrases or the person's name.
 
 ```text
-Web Application          Grokbot bot / API consumer
-       \                      /
-        \                    /
-       WorkerApplication (HTTP, error handling)
-              |
-       PersonaService ---------> PersonaPackageFactory --> ZipArchive
-          |            \
-      PresetCatalog   PromptComposer -----> AvatarStyles
-          |            /
-        PersonaValidator
-          |
-    WorkerAIService (Workers AI binding)
-
-Public generation requests:
-RequestAuthorizer -> QuotaService -> QuotaLedger (SQLite Durable Object)
-                             -> PersonaService -> WorkerAIService
-
-No-AI endpoints:
-/locales, /presets, /prompts, /packages
+Web UI / API input
+    |
+WorkerApplication — routing, limits and security
+    |
+PersonaService — application orchestration
+    |       |
+    |       +-- PersonaValidator — canonical input
+    |       +-- PresetCatalog + PromptComposer — text and preview prompts
+    |
+    +-- Direct Workers AI flow (/drafts, /personas; metered)
+    |       |
+    |       +-- WorkerAIService — high-level flow orchestration
+    |               |
+    |               +-- PersonaTextGenerator (Qwen3 / Gemma)
+    |               |     |-- complete Markdown + resolvedIdentity (same call)
+    |               |     +-- compatibility repair if plain Markdown returned
+    |               |
+    |               +-- PersonaVisualIdentity.resolve (single source of truth)
+    |               +-- AvatarPromptComposer (EN FLUX prompt)
+    |               +-- FLUX.2 / FLUX.1 image generation
+    |               +-- AvatarVisualReviewer (optional quality check + retry)
+    |
+    +-- Local Grokbot flow (all API steps are zero-AI)
+    |       +-- /prompts -> local model creates Markdown + resolvedIdentity
+    |       +-- /avatar-prompts -> PersonaVisualIdentity.resolve
+    |       |                   -> AvatarPromptComposer
+    |       +-- /packages -> PersonaPackageFactory -> ZipArchive
+    |
+    +-- ZIP manifest may include the same resolvedIdentity
 ```
 
-Responsibilities stay separated:
+## SOLID/DRY boundaries
 
-- `catalog/PresetCatalog`: source of fields per persona set.
-- `i18n/Localization`: one authoritative dictionary for the page, schema names, labels and prompt language.
-- `avatar/AvatarStyles`: fixed illustrations styles, localized directions and stable identifiers.
-- `persona/PersonaValidator`: all input constraints and normalization.
-- `persona/PromptComposer`: the only code that assembles model prompts, including `grokbotPrompt` and image art direction.
-- `ai/WorkerAIService`: the only runtime code that calls the Cloudflare AI binding.
-- `quota/QuotaPolicy`: cost and reset-day rules. `QuotaLedger`: SQLite Durable Object with atomic credits. `QuotaService`: HTTP client and HTTP error mapping.
-- `security/RequestAuthorizer`: optional private API authentication and public traffic throttling; **not** the quota engine.
-- `package/PersonaPackageFactory`: valid, traceable ZIP artifacts.
-- `http/WorkerApplication`: resource routing and input/output limits.
-- `public/web/*`: UI controls, transport client and preview behavior; no private API keys, no duplicated prompt templates.
+- `PersonaVisualIdentity` — immutable normalized character card. Holds
+  gender, age, appearance, role, origin, personality, visual mood and source;
+  merges explicit inputs with model decisions. Rejects clear contradictions.
+- `PersonaTextGenerator` — semantic interpretation by one text model, parsing
+  a typed JSON envelope; never builds image prompts. Primary Qwen3, fallback Gemma 4.
+- `AvatarPromptComposer` — **only** image prompt builder (localized preview and
+  image-model English), always based on the resolved card.
+- `AvatarRegionalContext` — visual-only soft locale defaults, not nationality facts.
+- `AvatarVisualReviewer` — optional post-image check; never the initial gender
+  decision maker. False positives/uncertainty require human review.
+- `PromptComposer` / `PersonaQualityPolicy` / `PersonaOutputContract` —
+  localized instruction composition, quality criteria and preset-specific
+  output structure. The initial `avatarPrompt` is explicitly preliminary.
+- `PersonaService` — zero-AI and AI application workflows, input/output wiring.
+- `WorkerApplication` — HTTP route handlers; does not interpret character traits.
+- `PersonaValidator` — bounds and schema validation. `PresetCatalog` and
+  `i18n/Localization` — user fields and all three locales.
+- `QuotaService`, `QuotaPolicy` and `QuotaLedger` — site-wide Durable Object
+  credits; `RequestAuthorizer` — separate request authentication and rate limits.
+- `PersonaPackageFactory` and `ZipArchive` — self-contained persona archives.
 
-Only a daily quota counter is persisted, **not** generated personae. Private and workplace identity values remain request-scoped. The Worker has no hard-coded client hostname; operators map domains at deployment. Model usage is restricted by a site-credit counter rather than a provider spending invoice cap.
+## Compatibility and limitations
 
-The single quota Durable Object is deliberately one global reservation bottleneck because the application has a low daily cap; it is not designed for tens of thousands of reservation requests per second. Split by tenant/site only if this becomes a multi-tenant product. This is distinct from low-latency, approximate POP-based throttling.
+`/api/v1/prompts` returns original response fields with zero Workers AI calls.
+`/api/v1/avatar-prompts` is new and zero-AI, **requires** Markdown and a
+semantic card made by the local AI; a no-AI Worker cannot understand arbitrary
+Markdown by itself. `/api/v1/packages` is likewise zero-AI and may include
+the resolved card in the manifest.
+
+`/api/v1/drafts` returns Markdown and optionally avatar bytes, review status
+and `resolvedIdentity`. `/api/v1/personas` returns ZIP. Their authentication,
+site-credit reserve and response types stay compatible. Text-only/revision
+calls remain Markdown, not JSON envelopes. Validating the image model output
+cannot prove a real-world identity or nationality.
+
+All characters and images remain request-scoped: the Worker persists **only
+site-wide quota data**. Image generation/review consumes Workers AI Neurons.
+The daily site-credit limit is not a Cloudflare spending cap.

@@ -109,6 +109,16 @@ class PersonaBrowserTest(unittest.TestCase):
             page.wait_for_function("document.querySelector('#draftMarkdown').value.includes('模擬人設')")
             self.assertTrue(page.locator("#draftAvatarPreview").is_visible())
             self.assertNotIn("需要明確人物性別",page.locator("#status").inner_text())
+            # Editing Markdown invalidates the previously generated avatar;
+            # the zip must not silently include the old inconsistent picture.
+            page.locator("#draftEditTab").click()
+            page.locator("#draftMarkdown").fill("# 不同人物\\n\\n現在是新的角色。")
+            with page.expect_download() as downloadInfo:
+                page.locator("#downloadDraft").click()
+            with zipfile.ZipFile(downloadInfo.value.path()) as archive:
+                self.assertNotIn("avatar.jpg",archive.namelist())
+                self.assertNotIn("avatar.png",archive.namelist())
+                self.assertIn("不同人物",archive.read("persona.md").decode("utf-8"))
             browser.close()
 
 

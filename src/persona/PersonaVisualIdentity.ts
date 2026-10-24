@@ -73,6 +73,14 @@ export class PersonaVisualIdentity {
     if (explicit !== "unspecified" && data.gender !== explicit) {
       throw new ValidationError("resolvedIdentity.gender contradicts the explicitly selected character gender");
     }
+    // Do not silently override an AI card that disagrees with an explicit age;
+    // otherwise the Markdown and avatar could still describe different people.
+    if (persona.values.age && typeof data.age === "string") {
+      const normalized = (value: string) => value.replace(/歲|岁|years?\\s*old/gi, "").trim();
+      if (normalized(persona.values.age) !== normalized(data.age)) {
+        throw new ValidationError("resolvedIdentity.age contradicts the explicitly supplied age");
+      }
+    }
     if (data.source !== undefined && !["ai", "user"].includes(String(data.source))) {
       throw new ValidationError("resolvedIdentity.source must be ai or user");
     }

@@ -1,5 +1,5 @@
 import type { AiBinding, PersonaRequest, PromptBundle } from "../Types.js";
-import { AIUnavailableError, ValidationError } from "../Errors.js";
+import { AIUnavailableError } from "../Errors.js";
 import { PersonaVisualIdentity } from "../persona/PersonaVisualIdentity.js";
 
 /** Owns text generation and the typed JSON transport contract; no image logic. */
