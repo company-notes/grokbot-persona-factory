@@ -46,7 +46,8 @@ Example:
     "name": "小安",
     "department": "研發部",
     "role": "研發部助理",
-    "personality": "細心、認真、不猜測技術問題"
+    "personality": "細心、認真、不猜測技術問題",
+    "origin": "臺灣"
   }
 }
 ```
@@ -138,3 +139,15 @@ Alternatively, use a **UTF-8 Node script** that reads the file with `fs.readFile
 Optional `detailLevel`: `concise`, `standard` (default), or `full`. The website supports the same choices. For workplace personas, the prompt requests concrete duties, owner boundaries, verifiable outcomes and work scenarios. Other presets follow their own standards.
 
 `grokbotPrompt` includes the complete `systemPrompt` and `userPrompt`, so local Grokbot receives the same requirements as Workers AI. `/api/v1/prompts` still calls no AI and consumes no site credits.
+
+## Portrait regional context (locales are not nationalities)
+
+Optional `values.origin` is available on every persona set, with a translated website field "Nationality / regional background". A supplied origin becomes an explicit user fact; it is never inferred from the chosen interface language.
+
+For avatars only, when no origin or clear regional/ethnic appearance is supplied:
+
+- `zh-hant`: soft reference to a contemporary Taiwanese professional, not a claim of nationality.
+- `zh-hans`: soft reference to a contemporary mainland Chinese professional, not a claim of nationality.
+- `en`: no geographic, national or ethnic default.
+
+Explicit `values.origin` and explicit appearance take priority. Nationality alone does not uniquely determine ethnic appearance; users can describe the intended look in `values.appearance`. The same logic is applied to the localized `avatarPrompt`, the Grokbot prompt's optional avatar section, and the Workers AI image-model prompt. Locale-based hints must not be copied into a person's verified biography. `POST /api/v1/prompts` still invokes no AI or site credits.

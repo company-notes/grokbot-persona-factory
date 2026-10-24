@@ -1,5 +1,6 @@
 import type { PersonaRequest } from "../Types.js";
 import { AvatarStyles } from "./AvatarStyles.js";
+import { AvatarRegionalContext } from "./AvatarRegionalContext.js";
 
 /**
  * Builds an English, image-model-oriented prompt independently of the
@@ -9,7 +10,7 @@ import { AvatarStyles } from "./AvatarStyles.js";
  * image models are less reliable with multilingual instruction strings.
  */
 export class AvatarPromptComposer {
-  constructor(private readonly styles = new AvatarStyles()) {}
+  constructor(private readonly styles = new AvatarStyles(), private readonly regional = new AvatarRegionalContext()) {}
 
   compose(persona: PersonaRequest): string {
     const style = this.styles.require(persona.avatarStyle);
@@ -18,6 +19,7 @@ export class AvatarPromptComposer {
     const age = this._value(persona.values.age, 80);
     const appearance = this._value(persona.values.appearance, 400);
     const personality = this._value(persona.values.personality, 200);
+    const regional = this.regional.guidance(persona).english;
 
     const details = [
       name ? `Character name: ${name}.` : "",
@@ -31,12 +33,13 @@ export class AvatarPromptComposer {
       this.styles.describe(style, "en"),
       "Exactly ONE original character. Solo head-and-shoulders portrait, one face, centered composition, square crop, clean background, natural expression, tasteful and nonsexualized.",
       "No extra people, no groups, no duplicate faces, no split panels, no text, no lettering, no typography, no captions, no brand logos, no watermarks.",
-      details,
       ...(style === "realistic" ? [
         "Photorealistic corporate headshot.",
         "No other people. No illustration. No anime. No fantasy costume.",
         "No text, lettering, logo, watermark, or stamp.",
       ] : []),
+      regional,
+      details,
     ].filter(Boolean).join(" ").slice(0, 2000);
   }
 

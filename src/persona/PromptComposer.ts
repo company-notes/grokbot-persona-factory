@@ -1,5 +1,6 @@
 import type { PersonaRequest, PersonaPreset, PromptBundle } from "../Types.js";
 import { AvatarStyles } from "../avatar/AvatarStyles.js";
+import { AvatarRegionalContext } from "../avatar/AvatarRegionalContext.js";
 import { PersonaQualityPolicy } from "./PersonaQualityPolicy.js";
 import { PersonaOutputContract } from "./PersonaOutputContract.js";
 import type { Locale } from "../i18n/Localization.js";
@@ -67,6 +68,7 @@ const copy: Record<Locale, PromptCopy> = {
 
 export class PromptComposer {
   private readonly styles = new AvatarStyles();
+  private readonly regional = new AvatarRegionalContext();
   private readonly quality = new PersonaQualityPolicy();
   private readonly outputContract = new PersonaOutputContract();
 
@@ -97,21 +99,33 @@ export class PromptComposer {
       );
     }
 
-    const avatarPrompt = messages.avatar(
-      displayName,
-      preset.fields.find((field) => field.id === "gender")?.optionLabels?.[persona.values.gender] ?? messages.unknown,
-      persona.values.age || messages.unknown,
-      persona.values.appearance || messages.unknown,
-      persona.values.personality || messages.unknown,
-    ).slice(0, 2000);
-
     const style = this.styles.describe(this.styles.require(persona.avatarStyle), locale);
+    const regionalHint = this.regional.guidance(persona).localized;
+    const avatarPrompt = [
+      style,
+      regionalHint,
+      messages.avatar(
+        displayName,
+        preset.fields.find((field) => field.id === "gender")?.optionLabels?.[persona.values.gender] ?? messages.unknown,
+        persona.values.age || messages.unknown,
+        persona.values.appearance || messages.unknown,
+        persona.values.personality || messages.unknown,
+      ).slice(0, 1300),
+    ].join(" ").slice(0, 2048);
     const grokbotIntro = {
       en: "Please create a complete, practical, evergreen AI assistant persona for Grokbot in English, formatted as Markdown. Respect every specified fact, keep personality separate from job responsibilities and authority, and include natural example responses. Here are the requirements:",
       "zh-hant": "請幫我為 Grokbot 建立一位 AI 助理的人設，使用繁體中文輸出可直接使用的完整 Markdown。保留我指定的資料，清楚區分人格、職責和權限，包含自然的說話範例。需求如下：",
       "zh-hans": "请帮我为 Grokbot 创建一位 AI 助理的人设，使用简体中文输出可直接使用的完整 Markdown。保留指定资料，明确区分人格、职责与权限，附上自然的对话示例。需求如下：",
     }[locale];
-    const grokbotPrompt = [grokbotIntro, messages.system.join("\n"), ...userSections].join("\n\n");
+    const avatarSectionTitle = {
+      en: "OPTIONAL AVATAR GUIDANCE (visual-only; never assert a nationality inferred from interface language in the biography):",
+      "zh-hant": "選擇產生頭像時的視覺指引（僅供圖像使用，不可把語言預設當作人物已確認國籍）：",
+      "zh-hans": "选择生成头像时的视觉指引（仅用于图像，不可把语言预设当作人物已确认国籍）：",
+    }[locale];
+    const grokbotPrompt = [
+      grokbotIntro, messages.system.join("\n"), ...userSections,
+      ...(persona.includeAvatar === true ? [avatarSectionTitle, avatarPrompt] : []),
+    ].join("\n\n");
 
     return {
       grokbotPrompt,
@@ -120,7 +134,7 @@ export class PromptComposer {
       displayName,
       systemPrompt: messages.system.join("\n"),
       userPrompt: userSections.join("\n\n"),
-      avatarPrompt: `${avatarPrompt} ${style}`.slice(0, 2048),
+      avatarPrompt,
     };
   }
 }

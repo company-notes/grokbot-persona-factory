@@ -714,3 +714,88 @@ test("autonomy and hypothetical reporting guidance stay localized in all workpla
     assert.equal(ai.calls.length, 0);
   }
 });
+
+test("zh-hant portrait uses a Taiwanese visual default without inventing nationality", async () => {
+  const ai = new FakeAI();
+  const app = new WorkerApplication();
+  const input = {
+    presetId: "workplace", locale: "zh-hant",
+    avatarStyle: "realistic", includeAvatar: true,
+    values: { name: "林婉婷", englishName: "Lynn", age: "28", gender: "女性",
+      department: "行政部", role: "助理", appearance: "俐落短髮，合身職業裝" },
+  };
+  const promptsRes = await app.fetch(request("/api/v1/prompts", input), env(ai));
+  assert.equal(promptsRes.status, 200);
+  const prompts = await promptsRes.json();
+  assert.match(prompts.avatarPrompt, /當代臺灣職場人物/);
+  assert.match(prompts.avatarPrompt, /這不表示人物已確認具有臺灣國籍/);
+  assert.match(prompts.grokbotPrompt, /僅供圖像使用/);
+  assert.doesNotMatch(prompts.userPrompt, /臺灣國籍/);
+  assert.equal(ai.calls.length, 0);
+  const draft = await app.fetch(request("/api/v1/drafts", input, true), env(ai));
+  assert.equal(draft.status, 200);
+  const imagePrompt = await avatarPromptFromCall(ai.calls.find(call => call.model.includes("flux")));
+  assert.match(imagePrompt, /contemporary Taiwanese professional/);
+  assert.match(imagePrompt, /natural East Asian facial features/);
+  assert.match(imagePrompt, /Apparent age: 28/);
+  assert.match(imagePrompt, /No anime/);
+});
+
+test("zh-hans defaults to mainland visual context, English assumes no country", async () => {
+  const app = new WorkerApplication();
+  for (const [locale, output, visual] of [
+    ["zh-hans", /中国大陆职场人物/, /mainland Chinese professional/],
+    ["en", /does not specify nationality/, /No nationality, ethnicity, or specific country should be inferred/],
+  ]) {
+    const ai = new FakeAI();
+    const person = { ...samplePersona, locale, includeAvatar: true, avatarStyle: "realistic" };
+    const res = await app.fetch(request("/api/v1/prompts", person), env(ai));
+    assert.equal(res.status, 200);
+    assert.match((await res.json()).avatarPrompt, output);
+    const draft = await app.fetch(request("/api/v1/drafts", person, true), env(ai));
+    assert.equal(draft.status, 200);
+    const imagePrompt = await avatarPromptFromCall(ai.calls.find(call => call.model.includes("flux")));
+    assert.match(imagePrompt, visual);
+  }
+});
+
+test("explicit background and appearance override locale visual suggestions", async () => {
+  const app = new WorkerApplication();
+  const inputs = [
+    { values: { ...samplePersona.values, origin: "巴西" }, expected: /User-specified nationality or cultural background: 巴西/, absent: /contemporary Taiwanese professional/ },
+    { values: { ...samplePersona.values, appearance: "歐洲白人，金色短髮" }, expected: /Follow those explicit details/, absent: /contemporary Taiwanese professional/ },
+    { values: { ...samplePersona.values, origin: "日裔美國人", appearance: "銀色長髮" }, expected: /日裔美國人/, absent: /contemporary Taiwanese professional/ },
+  ];
+  for (const item of inputs) {
+    const ai = new FakeAI();
+    const person = { ...samplePersona, locale: "zh-hant", includeAvatar: true, avatarStyle: "realistic", values: item.values };
+    const promptsResponse = await app.fetch(request("/api/v1/prompts", person), env(ai));
+    assert.equal(promptsResponse.status, 200);
+    const prompts = await promptsResponse.json();
+    assert.match(prompts.avatarPrompt, item.values.origin ? /國籍／地域文化背景/ : /外貌已有明確地域或族裔線索/);
+    const draft = await app.fetch(request("/api/v1/drafts", person, true), env(ai));
+    assert.equal(draft.status, 200);
+    const prompt = await avatarPromptFromCall(ai.calls.find(call => call.model.includes("flux")));
+    assert.match(prompt, item.expected);
+    assert.doesNotMatch(prompt, item.absent);
+  }
+});
+
+test("new origin field is optional in all presets and localized across all languages", async () => {
+  const app = new WorkerApplication();
+  for (const [locale, expected] of [
+    ["en", /Nationality \/ regional background/],
+    ["zh-hant", /人物國籍／地域背景/],
+    ["zh-hans", /人物国籍／地域背景/],
+  ]) {
+    const result = await app.fetch(new Request("https://example.test/api/v1/presets?locale=" + locale), env(new FakeAI()));
+    assert.equal(result.status, 200);
+    const data = await result.json();
+    for (const preset of data.presets) {
+      const field = preset.fields.find(x => x.id === "origin");
+      assert.ok(field, "origin must be supported in " + preset.id);
+      assert.equal(field.required, undefined);
+      assert.match(field.label, expected);
+    }
+  }
+});

@@ -9,6 +9,7 @@ const identity: FieldDefinition[] = [
   { id: "englishName", type: "text" },
   { id: "gender", type: "select", options: ["", "女性", "男性", "非二元", "不限／不設定"] },
   { id: "age", type: "text" },
+  { id: "origin", type: "text" },
   { id: "birthday", type: "text" },
   { id: "personality", type: "textarea" },
   { id: "speakingStyle", type: "textarea" },
