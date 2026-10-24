@@ -572,3 +572,79 @@ test("preset output contracts differ by role and locale; revisions preserve orig
   assert.match(text, /原來設定/);
   assert.doesNotMatch(text, /三種實際工作情境/);
 });
+
+
+test("new default model selection uses Qwen3 and FLUX.2 Klein with multipart", async () => {
+  const app = new WorkerApplication();
+  const ai = new FakeAI();
+  const response = await app.fetch(request("/api/v1/drafts", {
+    ...samplePersona, avatarStyle: "realistic", includeAvatar: true,
+  }, true), env(ai));
+  assert.equal(response.status, 200);
+  assert.equal(ai.calls[0].model, "@cf/qwen/qwen3-30b-a3b-fp8");
+  assert.equal(ai.calls[0].input.max_tokens, 3400);
+  assert.equal(ai.calls.length, 2);
+  assert.equal(ai.calls[1].model, "@cf/black-forest-labs/flux-2-klein-4b");
+  assert.match(ai.calls[1].input.multipart.contentType, /^multipart\/form-data; boundary=/);
+  assert.ok(ai.calls[1].input.multipart.body);
+  assert.equal((await response.json()).avatarMimeType, "image/jpeg");
+});
+
+test("FLUX.2 PNG image is correctly reported and packaged with PNG extension", async () => {
+  class PngAI extends FakeAI {
+    async run(model, input) {
+      if (model.includes("flux-2-klein")) {
+        this.calls.push({ model, input });
+        return { image: btoa(String.fromCharCode(137,80,78,71,13,10,26,10,0,0,0,0)) };
+      }
+      return super.run(model, input);
+    }
+  }
+  const app = new WorkerApplication();
+  const ai = new PngAI();
+  const input = { ...samplePersona, includeAvatar: true, avatarStyle: "realistic" };
+  const draft = await app.fetch(request("/api/v1/drafts", input, true), env(ai));
+  assert.equal(draft.status, 200);
+  assert.equal((await draft.json()).avatarMimeType, "image/png");
+  const zip = await app.fetch(request("/api/v1/personas", input, true), env(ai));
+  assert.equal(zip.status, 200);
+  assert.ok(inspectZip(await zip.arrayBuffer()).includes("avatar.png"));
+});
+
+test("new models failing fall back safely to legacy text and image models", async () => {
+  class UnavailableAI extends FakeAI {
+    async run(model, input) {
+      if (model.includes("qwen3-30b") || model.includes("flux-2-klein")) {
+        this.calls.push({ model, input });
+        throw Error("Model unavailable");
+      }
+      return super.run(model, input);
+    }
+  }
+  const ai = new UnavailableAI();
+  const result = await new WorkerApplication().fetch(request("/api/v1/drafts", {
+    ...samplePersona, includeAvatar: true,
+  }, true), env(ai));
+  assert.equal(result.status, 200);
+  assert.deepEqual(ai.calls[1].input.chat_template_kwargs, { enable_thinking: false });
+  assert.deepEqual(ai.calls.map(x => x.model), [
+    "@cf/qwen/qwen3-30b-a3b-fp8",
+    "@cf/google/gemma-4-26b-a4b-it",
+    "@cf/black-forest-labs/flux-2-klein-4b",
+    "@cf/black-forest-labs/flux-1-schnell",
+  ]);
+});
+
+test("workplace contract explicitly rejects unsupported personal traits and invented company facts", async () => {
+  const app = new WorkerApplication();
+  const ai = new FakeAI();
+  const {readFile} = await import("node:fs/promises");
+  const persona = JSON.parse(await readFile(new URL("./fixtures/YvonneLin.zh-hant.json", import.meta.url), "utf8"));
+  const result = await app.fetch(request("/api/v1/prompts", persona), env(ai));
+  assert.equal(result.status, 200);
+  const prompt = (await result.json()).grokbotPrompt;
+  assert.match(prompt, /不可擅自補上未指定的 MBTI/);
+  assert.match(prompt, /員工人數/);
+  assert.match(prompt, /假設案例/);
+  assert.equal(ai.calls.length, 0);
+});
