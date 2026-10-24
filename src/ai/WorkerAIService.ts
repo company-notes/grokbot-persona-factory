@@ -1,6 +1,7 @@
 import { AIUnavailableError } from "../Errors.js";
 import type { ResolvedIdentity } from "../persona/PersonaVisualIdentity.js";
 import { PersonaTextGenerator } from "./PersonaTextGenerator.js";
+import { BoundedAIBinding } from "./BoundedAIBinding.js";
 import { AvatarPromptComposer } from "../avatar/AvatarPromptComposer.js";
 import { AvatarVisualReviewer } from "../avatar/AvatarVisualReviewer.js";
 import type { AiBinding, PromptBundle, PersonaRequest } from "../Types.js";
@@ -14,7 +15,8 @@ export interface GeneratedPersona {
 }
 
 export class WorkerAIService {
-  constructor(private readonly ai: AiBinding) {}
+  private readonly ai: AiBinding;
+  constructor(ai: AiBinding) { this.ai = new BoundedAIBinding(ai); }
 
   static readonly primaryImageModel = "@cf/black-forest-labs/flux-2-klein-4b";
   static readonly fallbackImageModel = "@cf/black-forest-labs/flux-1-schnell";

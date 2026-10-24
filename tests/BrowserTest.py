@@ -127,6 +127,41 @@ class PersonaBrowserTest(unittest.TestCase):
                 self.assertIn("不同人物",archive.read("persona.md").decode("utf-8"))
             browser.close()
 
+    def testCancelWaitAndDeadlineNeverLeaveLoadingMaskStuck(self):
+        with sync_playwright() as playwright:
+            browser=playwright.chromium.launch(headless=True,args=["--no-sandbox"])
+            page=browser.new_page(locale="zh-TW")
+            page.goto("http://127.0.0.1:8788/")
+            page.locator(".presetCard").first.wait_for()
+            page.locator("#field-brief").fill("大美女、暗戀總經理的秘書，認真又風趣")
+            page.locator("#mainAction").click()
+            page.locator("#loadingOverlay").wait_for(state="visible")
+            self.assertTrue(page.locator("#loadingCancel").is_visible())
+            page.locator("#loadingCancel").click()
+            page.locator("#loadingOverlay").wait_for(state="hidden")
+            self.assertIn("取消",page.locator("#status").inner_text())
+
+            # Stub a permanently stalled network request and verify timeout
+            # behavior without waiting for the production 155-second deadline.
+            error=page.evaluate("""async () => {
+                const {HTTPClient}=await import('/HTTPClient.js');
+                const original=window.fetch;
+                window.fetch=(_path,init) => new Promise((_resolve,reject) => {
+                    init.signal.addEventListener('abort',
+                        () => reject(new DOMException('Aborted','AbortError')),{once:true});
+                });
+                try {
+                    await new HTTPClient().request('/stall',{},false,{timeoutMs:35});
+                    return 'NOT_TIMED_OUT';
+                } catch (error) {
+                    return error.errorCode;
+                } finally {
+                    window.fetch=original;
+                }
+            }""")
+            self.assertEqual(error,"GENERATION_TIMEOUT")
+            browser.close()
+
 
 if __name__ == "__main__":
     unittest.main()

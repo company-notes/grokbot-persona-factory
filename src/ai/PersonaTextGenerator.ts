@@ -15,7 +15,7 @@ export class PersonaTextGenerator {
     markdown: string; identity?: PersonaVisualIdentity;
   }> {
     const withAvatar = persona.includeAvatar === true;
-    const maxTokens = persona.detailLevel === "concise" ? 2600 : persona.detailLevel === "full" ? 5900 : 4500;
+    const maxTokens = persona.detailLevel === "concise" ? 1600 : persona.detailLevel === "full" ? 3600 : 2600;
     // The structured envelope is required only when an avatar is requested;
     // text-only and revisions retain the historical Markdown format.
     // Website AI uses a lighter creative contract. The public /prompts API
@@ -36,10 +36,10 @@ export class PersonaTextGenerator {
           messages: [
             { role: "system", content: system },
             { role: "user", content: model === PersonaTextGenerator.primaryModel
-              ? user + "\n/think" : user },
+              ? user + "\n/no_think" : user },
           ],
           max_tokens: maxTokens,
-          temperature: persona.presetId === "workplace" ? 0.65 : 0.75,
+          temperature: persona.presetId === "workplace" ? 0.70 : 0.75,
           ...(model === PersonaTextGenerator.fallbackModel
             ? { chat_template_kwargs: { enable_thinking: false } } : {}),
         });
@@ -68,6 +68,7 @@ export class PersonaTextGenerator {
                 { role: "user", content: markdown },
               ],
               max_tokens: 420, temperature: 0,
+              ...(model === PersonaTextGenerator.primaryModel ? { chat_template_kwargs: { enable_thinking: false } } : {}),
               ...(model === PersonaTextGenerator.fallbackModel
                 ? { chat_template_kwargs: { enable_thinking: false } } : {}),
             });

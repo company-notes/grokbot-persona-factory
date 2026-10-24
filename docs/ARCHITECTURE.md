@@ -100,4 +100,8 @@ rather than inventing per-model stage progress.
 
 ## Public MVP authoring versus external strict prompts
 
-`HostedPersonaBrief` isolates lightweight, playful, character-first copywriting from the existing `PromptComposer` enterprise-grade contracts. Hosted Workers AI `/drafts` and `/personas` call it internally; public `/prompts` for Grokbot retains the full contract and zero AI cost. `PersonaTextGenerator` appends its short identity-card transport when avatars are requested and asks Qwen3 to think before creating the final Markdown; avatar prompts continue to use the same resolved character identity.
+`HostedPersonaBrief` isolates lightweight, playful, character-first copywriting from the existing `PromptComposer` enterprise-grade contracts. Hosted Workers AI `/drafts` and `/personas` call it internally; public `/prompts` for Grokbot retains the full contract and zero AI cost. `PersonaTextGenerator` appends its short identity-card transport when avatars are requested and asks Qwen3 to use non-thinking mode for interactive responsiveness; avatar prompts continue to use the same resolved character identity.
+
+## Bounded inference
+
+`BoundedAIBinding` is injected into `WorkerAIService` and shared by text generation, FLUX, and optional visual review. It enforces an overall time budget and per-model deadlines without logging persona contents. Its deadline is a **response-side guard**, not a guarantee that the provider has terminated processing or refunded its usage. `HTTPClient` adds a slightly longer browser-side deadline and supports canceling waits, and `LoadingMask` supplies a visible cancellation control. These checks avoid unbounded loading screens.

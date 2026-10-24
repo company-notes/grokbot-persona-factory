@@ -1,20 +1,38 @@
 export class HTTPClient {
-  async request(path, body, binary = false) {
+  async request(path, body, binary = false, options = {}) {
     const headers = { "content-type": "application/json" };
-
-    const response = await fetch(path, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      const result = await response.json();
-      const error = new Error(result.error || `HTTP ${response.status}`);
-      error.errorCode = result.errorCode;
+    const timeoutMs = options.timeoutMs ?? 0;
+    const controller = new AbortController();
+    let timedOut = false;
+    const abortRequest = () => controller.abort();
+    options.signal?.addEventListener("abort", abortRequest, { once: true });
+    if (options.signal?.aborted) controller.abort();
+    const timer = timeoutMs > 0 ? setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs) : null;
+    try {
+      const response = await fetch(path, {
+        method: "POST", headers, body: JSON.stringify(body), signal: controller.signal,
+      });
+      if (!response.ok) {
+        const result = await response.json();
+        const error = new Error(result.error || `HTTP ${response.status}`);
+        error.errorCode = result.errorCode;
+        throw error;
+      }
+      return binary ? response.blob() : response.json();
+    } catch (error) {
+      if (timedOut) {
+        const failure = new Error("The AI request exceeded the waiting limit.");
+        failure.errorCode = "GENERATION_TIMEOUT";
+        throw failure;
+      }
       throw error;
+    } finally {
+      if (timer !== null) clearTimeout(timer);
+      options.signal?.removeEventListener("abort", abortRequest);
     }
-
-    return binary ? response.blob() : response.json();
   }
 
   getQuota() {
@@ -42,12 +60,12 @@ export class HTTPClient {
     return this.request("/api/v1/prompts", persona);
   }
 
-  draft(persona) {
-    return this.request("/api/v1/drafts", persona);
+  draft(persona, signal) {
+    return this.request("/api/v1/drafts", persona, false, { timeoutMs: 155000, signal });
   }
 
-  generate(persona) {
-    return this.request("/api/v1/personas", persona, true);
+  generate(persona, signal) {
+    return this.request("/api/v1/personas", persona, true, { timeoutMs: 155000, signal });
   }
 
   getAvatarPrompts(persona, markdown, resolvedIdentity) {

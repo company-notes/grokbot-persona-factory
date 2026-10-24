@@ -57,3 +57,6 @@
 body.is-generating{overflow:hidden}
 @keyframes loadingSpin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.loadingSpinner{animation-duration:3s}}
+
+.loadingCancel{margin-top:15px;border:1px solid #d8ceed;border-radius:10px;padding:10px 22px;background:#f5f1fc;color:#5c43a8;cursor:pointer;font:inherit;font-weight:650}
+.loadingCancel:hover,.loadingCancel:focus-visible{background:#ebe1ff;outline-offset:2px}

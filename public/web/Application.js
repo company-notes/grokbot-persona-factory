@@ -9,6 +9,7 @@ class PersonaApplication {
     this.http = new HTTPClient();
     this.i18n = new LocalizationClient(this.http);
     this.loading = new LoadingMask(this.i18n);
+    this.activeRequest = null;
     this.preview = new MarkdownPreview(document.getElementById("draftPreview"));
     this.form = new PersonaForm(
       document.getElementById("presets"),
@@ -51,6 +52,7 @@ class PersonaApplication {
     document.getElementById("advancedMode").addEventListener("click", () => this._setFormMode("advanced"));
     document.getElementById("includeAvatar").addEventListener("change", () => this._refreshQuotaUI());
     document.getElementById("mainAction").addEventListener("click", () => this._perform());
+    document.getElementById("loadingCancel").addEventListener("click", () => this.activeRequest?.abort());
     document.getElementById("copyPrompt").addEventListener("click", () => this._copyPrompt());
     document.getElementById("packageButton").addEventListener("click", () => this._packageExternal());
     document.getElementById("draftEditTab").addEventListener("click", () => this._showDraftView("edit"));
@@ -169,10 +171,13 @@ class PersonaApplication {
     const button = document.getElementById("mainAction");
     button.disabled = true;
     this._status(this.i18n.text(this.method === "worker" ? "status.loadingDraft" : "status.loadingPrompt"));
-    if (this.method === "worker") this.loading.show("draft", persona.includeAvatar === true);
+    if (this.method === "worker") {
+      this.activeRequest = new AbortController();
+      this.loading.show("draft", persona.includeAvatar === true);
+    }
     try {
       if (this.method === "worker") {
-        const draft = await this.http.draft(persona);
+        const draft = await this.http.draft(persona, this.activeRequest?.signal);
         this.draftPersona = persona;
         this.avatarReviewStatus = draft.avatarReviewStatus || null;
         this.draftIdentity = draft.resolvedIdentity || null;
@@ -195,7 +200,11 @@ class PersonaApplication {
         this._status(this.i18n.text("status.promptReady"));
       }
     } catch (error) {
-      if (error.errorCode === "QUOTA_EXHAUSTED") {
+      if (error.name === "AbortError") {
+        this._status(this.i18n.text("status.generationCanceled"), true);
+      } else if (error.errorCode === "GENERATION_TIMEOUT") {
+        this._status(this.i18n.text("status.generationTimeout"), true);
+      } else if (error.errorCode === "QUOTA_EXHAUSTED") {
         await this._refreshQuota();
         this._selectMethod("prompt");
         const prompts = await this.http.getPrompts(persona);
@@ -206,6 +215,7 @@ class PersonaApplication {
         this._statusError(error);
       }
     } finally {
+      this.activeRequest = null;
       this.loading.hide();
       button.disabled = false;
       this._refreshQuotaUI();
@@ -228,6 +238,7 @@ class PersonaApplication {
     const button = document.getElementById("refineDraft");
     button.disabled = true;
     this._status(this.i18n.text("status.loadingRefine"));
+    this.activeRequest = new AbortController();
     this.loading.show("refine");
     try {
       const persona = {
@@ -237,7 +248,7 @@ class PersonaApplication {
         existingMarkdown: markdown,
         revisionInstructions: instructions,
       };
-      const revised = await this.http.draft(persona);
+      const revised = await this.http.draft(persona, this.activeRequest.signal);
       document.getElementById("draftMarkdown").value = revised.markdown;
       this._showDraftView("preview");
       document.getElementById("refineInstructions").value = "";
@@ -246,8 +257,11 @@ class PersonaApplication {
       this._status(this.i18n.text("status.draftReady"));
     } catch (error) {
       await this._refreshQuota();
-      this._statusError(error);
+      if (error.name === "AbortError") this._status(this.i18n.text("status.generationCanceled"), true);
+      else if (error.errorCode === "GENERATION_TIMEOUT") this._status(this.i18n.text("status.generationTimeout"), true);
+      else this._statusError(error);
     } finally {
+      this.activeRequest = null;
       this.loading.hide();
       button.disabled = false;
     }

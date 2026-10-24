@@ -1,3 +1,4 @@
+import { BoundedAIBinding, AITimeoutError } from "../build/ai/BoundedAIBinding.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { WorkerApplication } from "../build/http/WorkerApplication.js";
@@ -520,12 +521,12 @@ test("detail level is validated and all three locales generate preset-specific g
 
 test("Workers AI respects the requested detail and workplace generation stability", async () => {
   const app = new WorkerApplication();
-  for (const [detailLevel, tokens] of [["concise", 2600], ["standard", 4500], ["full", 5900]]) {
+  for (const [detailLevel, tokens] of [["concise", 1600], ["standard", 2600], ["full", 3600]]) {
     const ai = new FakeAI();
     const res = await app.fetch(request("/api/v1/personas", { ...samplePersona, detailLevel }, true), env(ai));
     assert.equal(res.status, 200);
     assert.equal(ai.calls[0].input.max_tokens, tokens);
-    assert.equal(ai.calls[0].input.temperature, 0.65);
+    assert.equal(ai.calls[0].input.temperature, 0.70);
     assert.match(ai.calls[0].input.messages[1].content, /role|職務|department|職責|工作同事/);
   }
 });
@@ -614,7 +615,7 @@ test("new default model selection uses Qwen3 and FLUX.2 Klein with multipart", a
   }, true), env(ai));
   assert.equal(response.status, 200);
   assert.equal(ai.calls[0].model, "@cf/qwen/qwen3-30b-a3b-fp8");
-  assert.equal(ai.calls[0].input.max_tokens, 4500);
+  assert.equal(ai.calls[0].input.max_tokens, 2600);
   assert.equal(ai.calls.length, 2);
   assert.equal(ai.calls[1].model, "@cf/black-forest-labs/flux-2-klein-4b");
   assert.match(ai.calls[1].input.multipart.contentType, /^multipart\/form-data; boundary=/);
@@ -1271,8 +1272,7 @@ test("Qwen3 compact identity header plus ordinary Markdown needs one text call, 
   assert.equal(data.resolvedIdentity.gender,"female");
   assert.match(data.markdown,/^# 林小禾/);
   assert.equal(ai.calls.filter(c=>!c.model.includes("flux")).length,1);
-  assert.match(ai.calls[0].input.messages[1].content,/\/think/);
-  assert.doesNotMatch(ai.calls[0].input.messages[1].content,/\/no_think/);
+  assert.match(ai.calls[0].input.messages[1].content,/\/no_think/);
   assert.ok(ai.calls[0].input.messages[0].content.includes("<PERSONA_IDENTITY>"));
 });
 
@@ -1356,8 +1356,7 @@ test("hosted workplace MVP prioritizes user's distinctive personality over enter
   assert.match(call.input.messages[1].content,/不要強制三種事件/);
   assert.doesNotMatch(call.input.messages[1].content,/【公司 AI 員工輸出契約】|## 三種實際工作情境|三層權限/);
   assert.match(call.input.messages[1].content,/650～1100 字/);
-  assert.match(call.input.messages[1].content,/\/think/);
-  assert.doesNotMatch(call.input.messages[1].content,/\/no_think/);
+  assert.match(call.input.messages[1].content,/\/no_think/);
   assert.equal(ai.calls.filter(x=>x.model.includes("qwen")).length,1);
   assert.equal(ai.calls.filter(x=>x.model.includes("flux")).length,1);
 });
@@ -1367,7 +1366,7 @@ test("no-avatar hosted text also enables Qwen thinking, while /prompts still pro
   const payload={presetId:"workplace",locale:"zh-hant",includeAvatar:false,values:{brief:"總經理秘書，說話有趣、愛吃醋但不失專業"}};
   const hosted=await app.fetch(request("/api/v1/drafts",payload,true),env(ai));
   assert.equal(hosted.status,200);
-  assert.match(ai.calls[0].input.messages[1].content,/\/think/);
+  assert.match(ai.calls[0].input.messages[1].content,/\/no_think/);
   assert.match(ai.calls[0].input.messages[1].content,/說話有趣/);
   assert.doesNotMatch(ai.calls[0].input.messages[1].content,/三種實際工作情境/);
   const before=ai.calls.length;
@@ -1393,7 +1392,7 @@ test("hosted MVP has light, distinct themes for assistant, character and NPC wit
     assert.equal(result.status,200);
     const user=ai.calls[0].input.messages[1].content;
     assert.match(user,expected);
-    assert.match(user,/\/think/);
+    assert.match(user,/\/no_think/);
     assert.doesNotMatch(user,/企業 SOP|強制三種事件|三種實際工作情境/);
   }
 });
@@ -1410,4 +1409,49 @@ test("editing an existing persona remains faithful to the old draft instead of b
   assert.match(prompt,/現有人設/);
   assert.match(prompt,/只改一個說話範例/);
   assert.doesNotMatch(prompt,/Original idea \(MOST IMPORTANT\)/);
+});
+
+
+test("hosted Qwen3 generation is non-thinking, shorter and returns without extra model hops",async()=>{
+  const app=new WorkerApplication(),ai=new FakeAI();
+  const response=await app.fetch(request("/api/v1/drafts",{
+    presetId:"workplace",locale:"zh-hant",includeAvatar:true,avatarStyle:"realistic",
+    values:{brief:"大美女，暗戀總經理的秘書，認真、風趣、會和小晴吃醋"}
+  },true),env(ai));
+  assert.equal(response.status,200);
+  assert.deepEqual(ai.calls.map(call=>call.model),[
+    "@cf/qwen/qwen3-30b-a3b-fp8","@cf/black-forest-labs/flux-2-klein-4b"
+  ]);
+  assert.match(ai.calls[0].input.messages[1].content,/\/no_think/);
+  assert.equal(ai.calls[0].input.max_tokens,2600);
+  assert.match(ai.calls[0].input.messages[1].content,/小晴吃醋/);
+});
+
+test("BoundedAIBinding rejects permanently stalled inference without hanging",async()=>{
+  const binding=new BoundedAIBinding({run:()=>new Promise(()=>{})},{totalMs:110,perCallMs:20});
+  const started=Date.now();
+  await assert.rejects(()=>binding.run("@cf/qwen/qwen3-30b-a3b-fp8",{prompt:"test"}),err=>{
+    assert.equal(err.name,"AITimeoutError");
+    assert.equal(err.message,"AI_CALL_DEADLINE_EXCEEDED");
+    return true;
+  });
+  assert.ok(Date.now()-started<1000);
+});
+
+test("BoundedAIBinding enforces the shared total budget across different model requests",async()=>{
+  const binding=new BoundedAIBinding({run:async()=>{await new Promise(resolve=>setTimeout(resolve,12)); return {response:"ok"};}},{totalMs:34,perCallMs:90});
+  await binding.run("@cf/qwen/qwen3-30b-a3b-fp8",{});
+  await binding.run("@cf/google/gemma-4-26b-a4b-it",{});
+  await new Promise(resolve=>setTimeout(resolve,22));
+  await assert.rejects(()=>binding.run("@cf/black-forest-labs/flux-2-klein-4b",{}),err=>{
+    assert.ok(err instanceof AITimeoutError);
+    assert.equal(err.message,"AI_TIME_BUDGET_EXHAUSTED");
+    return true;
+  });
+});
+
+test("bounded AI wrapper passes successful responses through unchanged",async()=>{
+  const expected={response:"# 小禾\n\n28 歲個人助理。"};
+  const binding=new BoundedAIBinding({run:async()=>expected},{totalMs:1000,perCallMs:500});
+  assert.equal(await binding.run("@cf/qwen/qwen3-30b-a3b-fp8",{}),expected);
 });

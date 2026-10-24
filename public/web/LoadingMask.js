@@ -10,6 +10,7 @@ export class LoadingMask {
     this.title = document.getElementById("loadingTitle");
     this.description = document.getElementById("loadingDescription");
     this.elapsed = document.getElementById("loadingElapsed");
+    this.cancel = document.getElementById("loadingCancel");
     this.timer = null;
     this.previousFocus = null;
   }
@@ -21,6 +22,7 @@ export class LoadingMask {
     this.previousFocus = document.activeElement;
     this.title.textContent = this.i18n.text(mode === "refine" ? "loading.refineTitle" : "loading.draftTitle");
     this.description.textContent = this.i18n.text(includeAvatar ? "loading.avatarDescription" : "loading.textDescription");
+    this.cancel.textContent = this.i18n.text("loading.cancel");
     this.root.hidden = false;
     document.body.classList.add("is-generating");
     const started = Date.now();
