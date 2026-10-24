@@ -1,9 +1,5 @@
 name: Avatar Prompt Regression
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/avatar-prompt-regression.yml'
   workflow_dispatch:
 jobs:
   tests:
