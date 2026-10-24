@@ -77,7 +77,7 @@ public/web/     browser UI, translation client, form, API client, result preview
 
 Follow `CODE_PRINCIPLES.md` and `TESTING.md`: DRY, object-oriented state ownership, explicit concerns, no monolithic modules, and real flow tests. Test the API locally with `npm test` and the full browser flow with `npm run test:browser`. The browser E2E suite requires a working Chromium executable and permission to access localhost. The Cloudflare AI binding itself must be smoke-tested on a real Cloudflare staging deployment; in unit tests only model requests are substituted.
 
-A manual GitHub Actions deployment workflow is included but **not triggered by commits**. Suggested repository: `company-notes/grokbot-persona-factory`.
+GitHub Actions automatically tests and deploys on every push to `main` (including merges); `workflow_dispatch` also supports a manual redeploy. The production deploy is serialized to avoid concurrent releases. Secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are configured only in the repository Actions settings. Suggested repository: `company-notes/grokbot-persona-factory`.
 
 ### Example pricing and choosing an allowance
 
