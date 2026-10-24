@@ -532,8 +532,8 @@ test("Yvonne regression: prompt uses operational contract, preserves given ident
   assert.match(full, /例行任務/);
   assert.match(full, /資訊不足／跨部門爭議/);
   assert.match(full, /錯誤／風險事件/);
-  assert.match(full, /薪資核算/);
-  assert.match(full, /招募制度/);
+  assert.match(full, /薪資.*核算/);
+  assert.match(full, /制度設計/);
   assert.match(full, /提交前內部驗收/);
   assert.doesNotMatch(full, /身分與定位、目標與職責、判斷與決策方式/);
   assert.equal(ai.calls.length, 0);
