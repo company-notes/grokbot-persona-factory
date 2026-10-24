@@ -46,7 +46,7 @@ The service-to-service caller sends `Authorization: Bearer ...` directly from a 
 
 ## CI / GitHub
 
-Included `.github/workflows/deploy.yml` is **manual (`workflow_dispatch`) only**. Set GitHub secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (deploy permission, not runtime model token). Upload only your own deploy-specific domain configuration if you need a hostname in CI. Never hard-code personal domains or secrets into the generic repository.
+Included `.github/workflows/deploy.yml` automatically deploys on every push or merge to `main`, after TypeScript, API and browser end-to-end tests pass. `workflow_dispatch` remains available for manual redeployment. Deployments are serialized via GitHub Actions concurrency. Set GitHub secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (deploy permission, not runtime model token). Upload only your own deploy-specific domain configuration if you need a hostname in CI. Never hard-code personal domains or secrets into the generic repository. Pull requests do not deploy by default.
 
 ## Verification checklist
 
@@ -61,4 +61,4 @@ Included `.github/workflows/deploy.yml` is **manual (`workflow_dispatch`) only**
 
 Cloudflare's 10,000 Neurons/day allocation is shared across the account, not per-application. Inference will stop if that allocation is exhausted on Workers Free, regardless of this application's generous 150-credit hosted quota. Workers Paid is required for paid overage (consult current pricing). The application quota only limits attempts, not their precise Neuron costs; monitor actual spending in Cloudflare and consider Turnstile/WAF for public exposure. For truly zero additional inference charges with the current model combination, set the site quota to 30 credits/day or below and monitor your account-wide usage; this still is not a guarantee because each model invocation varies.
 
-The generic repository deliberately excludes your custom domain. For deployment-specific local overrides, copy `wrangler.jsonc` to `.gitignore`-excluded `wrangler.production.jsonc`, edit its `routes`, and deploy with `npx wrangler deploy --config wrangler.production.jsonc`. Alternatively keep DNS/Custom Domain managed in Cloudflare dashboard. The included manual GitHub workflow uses generic config and does not deploy automatically on push.
+The generic repository deliberately excludes your custom domain. For deployment-specific local overrides, copy `wrangler.jsonc` to `.gitignore`-excluded `wrangler.production.jsonc`, edit its `routes`, and deploy with `npx wrangler deploy --config wrangler.production.jsonc`. Alternatively keep DNS/Custom Domain managed in Cloudflare dashboard. The GitHub workflow deploys the generic configuration automatically on pushes to `main`, targeting the configured Worker name; production hostname routing stays managed in the Cloudflare dashboard unless an operator sets up a separate deployment-specific configuration.
