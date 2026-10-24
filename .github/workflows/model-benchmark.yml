@@ -19,11 +19,22 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run build:test
-      - name: Test live Workers AI candidates on the same UTF-8 fixture
+      - name: Test Workers AI through Wrangler remote AI binding
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node scripts/benchmark-models.mjs
+        run: |
+          npx wrangler dev --config wrangler.benchmark.jsonc --ip 127.0.0.1 --port 8791 > /tmp/persona-wrangler-bench.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 35); do
+            if curl -s --connect-timeout 2 -o /dev/null http://127.0.0.1:8791/; then break; fi
+            sleep 2
+          done
+          MODEL_BENCH_LOCAL=http://127.0.0.1:8791/benchmark node scripts/benchmark-models.mjs || {
+            tail -n 65 /tmp/persona-wrangler-bench.log
+            exit 1
+          }
       - uses: actions/upload-artifact@v4
         if: always()
         with:

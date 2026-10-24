@@ -3,7 +3,8 @@ import { PersonaValidator } from "../build/persona/PersonaValidator.js";
 import { PromptComposer } from "../build/persona/PromptComposer.js";
 import { PresetCatalog } from "../build/catalog/PresetCatalog.js";
 const account=process.env.CLOUDFLARE_ACCOUNT_ID, token=process.env.CLOUDFLARE_API_TOKEN;
-if(!account || !token) throw new Error("Missing Cloudflare credentials");
+const local=process.env.MODEL_BENCH_LOCAL;
+if(!local && (!account || !token)) throw new Error("Missing Cloudflare credentials");
 const fixture=JSON.parse(await readFile(new URL("../tests/fixtures/YvonneLin.zh-hant.json",import.meta.url),"utf8"));
 const preset=new PresetCatalog().require(fixture.presetId,fixture.locale);
 const persona=new PersonaValidator().validate(fixture,preset);
@@ -12,9 +13,13 @@ await mkdir("model-benchmark-results",{recursive:true});
 const auth={Authorization:`Bearer ${token}`};
 const url=model=>`https://api.cloudflare.com/client/v4/accounts/${account}/ai/run/${model}`;
 async function call(model,payload,asForm=false){
-  const response=await fetch(url(model),{
-    method:"POST",headers:asForm?auth:{...auth,"Content-Type":"application/json"},
-    body:asForm?payload:JSON.stringify(payload),
+  const endpoint=local ?? url(model);
+  const body=local
+    ? JSON.stringify(asForm ? {model,imagePrompt:typeof payload.get === "function" ? payload.get("prompt") : payload.prompt} : {model,input:payload})
+    : asForm ? payload : JSON.stringify(payload);
+  const response=await fetch(endpoint,{
+    method:"POST",headers:local?{"Content-Type":"application/json"}:asForm?auth:{...auth,"Content-Type":"application/json"},
+    body,
     signal:AbortSignal.timeout(115000)
   });
   const raw=await response.text();
@@ -57,7 +62,7 @@ for(const model of ["@cf/black-forest-labs/flux-1-schnell","@cf/black-forest-lab
     const isKlein=model.includes("klein");
     const form=new FormData();
     form.set("prompt",imagePrompt);form.set("width","512");form.set("height","512");
-    const imageRes=await call(model,isKlein?form:{prompt:imagePrompt,steps:4},isKlein);
+    const imageRes=await call(model,isKlein?form:{prompt:imagePrompt,steps:4},true);
     const base64=imageRes.image??"";
     const bytes=Buffer.from(base64,"base64");
     const mime=bytes[0]===0xff?"jpeg":bytes[0]===0x89?"png":"unknown";
