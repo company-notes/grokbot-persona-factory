@@ -9,9 +9,9 @@ Public, no model call:
 ```json
 {
   "day": "2026-10-23",
-  "limit": 20,
+  "limit": 150,
   "used": 2,
-  "remaining": 18,
+  "remaining": 148,
   "resetAt": "2026-10-24T00:00:00.000Z",
   "creditsPerText": 1,
   "creditsPerAvatar": 2,
@@ -112,3 +112,22 @@ The image must be a valid JPEG/PNG/WebP file under 5 MB. The site does not store
 - `401 UNAUTHORIZED`: only when the operator explicitly enables private mode (`ENABLE_PUBLIC_GENERATION=false`) and a server caller lacks the `PERSONA_API_TOKEN` header.
 
 No wildcard CORS headers are installed. Headless Grokbot processes can call the public HTTP API directly; browser extensions running on unrelated origins need an explicitly designed CORS policy.
+
+## UTF-8 requests on Windows (Traditional / Simplified Chinese)
+
+**Do not pipe a Chinese PowerShell here-string directly into `node -`.**
+Some Windows console or pipe encodings replace Chinese characters with `?` before Node receives them. This can corrupt `gender: 女性`, character names and avatar descriptions, causing both request validation errors and wrong image-generation results. The Worker itself is not the cause.
+
+Write the payload as a **UTF-8 JSON file** (for example `tests/fixtures/YvonneLin.zh-hant.json`), and post the original file bytes:
+
+```powershell
+curl.exe -fSs -X POST "https://YOUR-WORKER/api/v1/prompts" `
+  -H "Content-Type: application/json; charset=utf-8" `
+  --data-binary "@tests/fixtures/YvonneLin.zh-hant.json"
+```
+
+Alternatively, use a **UTF-8 Node script** that reads the file with `fs.readFile` and sends the buffer as `fetch(..., { body: buffer })`, or pass a Base64-encoded payload and decode it before posting. Never rely on a PowerShell text pipe to transport non-ASCII JSON.
+
+`npm test` includes a regression check that loads this fixture as UTF-8 bytes, exercises `POST /api/v1/prompts`, verifies Chinese name/gender/appearance survive unchanged, and confirms that prompt-only does not call an AI model.
+
+**Image model versus user-facing language:** the API returns localized avatar prompts in `en`, `zh-hant` or `zh-hans`. Internally the Worker uses a separate English image-model prompt for reliable composition; `realistic` additionally excludes illustration, anime, fantasy costumes, extra people and text. This does not change the language of the persona Markdown.
