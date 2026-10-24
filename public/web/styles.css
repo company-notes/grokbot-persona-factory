@@ -60,3 +60,14 @@ body.is-generating{overflow:hidden}
 
 .loadingCancel{margin-top:15px;border:1px solid #d8ceed;border-radius:10px;padding:10px 22px;background:#f5f1fc;color:#5c43a8;cursor:pointer;font:inherit;font-weight:650}
 .loadingCancel:hover,.loadingCancel:focus-visible{background:#ebe1ff;outline-offset:2px}
+
+/* Optional external authoring path. It is separate from the metered site action. */
+.grokbotSuggestion{display:flex;align-items:flex-start;gap:10px;background:#f7f5ff;border:1px solid #e7e1fc;border-radius:11px;padding:13px;margin:1px 0 18px}
+.grokbotSuggestionIcon{flex:0 0 30px;height:30px;display:grid;place-items:center;border-radius:9px;background:#e9e2ff;color:#7855d4;font-size:18px}
+.grokbotSuggestionBody{min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:5px}
+.grokbotSuggestionBody strong{color:#44336e;font-size:12px;font-weight:750;line-height:1.5}
+.grokbotSuggestionBody p{color:#696681;font-size:11px;line-height:1.75;margin:0}
+.grokbotSuggestionBody a{display:inline-block;color:#6848c6;font-size:11px;line-height:1.65;font-weight:750;text-decoration:underline;text-underline-offset:3px}
+.grokbotSuggestionBody a:hover{color:#483299}
+.grokbotSuggestionBody a:focus-visible{outline:2px solid #7855d4;outline-offset:3px;border-radius:3px}
+.grokbotSuggestionBody small{color:#8b879d;font-size:10px;line-height:1.55}

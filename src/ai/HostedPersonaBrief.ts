@@ -54,6 +54,7 @@ export class HostedPersonaBrief {
       "Translate requested personality traits into observable choices, work habits, and sample dialog. Keep explicitly given humor, romance, relationships and MBTI visible rather than reducing them to generic professionalism.",
       "Make up missing harmless fictional character details if helpful (including name and a specific adult age), but keep all explicitly given facts. Any guessed company procedures or relationships must not be presented as verified facts.",
       "For professional assistants, distinguish tasks they can do from actions requiring user consent. Do not invent real system access, commitments, or approved company rules.",
+      "Write the final persona as the character\'s own reusable profile. Do NOT include creator notes or generator provenance such as AI-suggested, AI-generated, draft status, prompt instructions or editorial parentheticals in the Markdown.",
       "Output Markdown only unless a later API transport instruction requests a short identity card before the Markdown.",
     ].join("\n");
     const original = (persona.values.brief ?? "").trim();

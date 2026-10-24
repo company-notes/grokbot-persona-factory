@@ -76,6 +76,15 @@
               <button class="methodOption" data-method="prompt" type="button" aria-pressed="false">
                 <span class="methodIcon">⌘</span><span class="methodContent"><strong data-i18n="method.prompt">只產生 Prompt</strong><small data-i18n="method.promptNote">由 Grokbot 或自備 AI 產生</small></span><span class="methodRadio"></span>
               </button>
+              <div class="grokbotSuggestion" aria-labelledby="grokbotSuggestionTitle">
+                <div class="grokbotSuggestionIcon" aria-hidden="true">✧</div>
+                <div class="grokbotSuggestionBody">
+                  <strong id="grokbotSuggestionTitle" data-i18n="grokbot.suggestionTitle">想建立更有特色的人設？</strong>
+                  <p data-i18n="grokbot.suggestionBody">試試專用 Grokbot 人設助理。在 Grokbot 建立不扣本站 AI 點數，完成後還能回來封裝 ZIP。</p>
+                  <a id="grokbotTemplateLink" href="https://x.ai/bot/5FSBNs8g-d_JwCxvoa4Vq" target="_blank" rel="noopener noreferrer" data-i18n="grokbot.suggestionAction">開啟 Grokbot 助理範本 ↗</a>
+                  <small data-i18n="grokbot.suggestionDisclaimer">Grokbot 可能需要登入，並有自己的使用限制。</small>
+                </div>
+              </div>
               <div class="avatarStylePanel">
                 <label for="detailLevel" class="apiLabel" data-i18n="form.detailLabel">人設詳細度</label>
                 <select id="detailLevel">

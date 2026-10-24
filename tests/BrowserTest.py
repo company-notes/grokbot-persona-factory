@@ -49,14 +49,26 @@ class PersonaBrowserTest(unittest.TestCase):
             page.goto("http://127.0.0.1:8788/")
             page.locator(".presetCard").first.wait_for()
             self.assertIn("AI 夥伴", page.locator("h1").inner_text())
+            # The external assistant is discoverable without using site AI.
+            suggestion=page.locator(".grokbotSuggestion")
+            self.assertTrue(suggestion.is_visible())
+            link=page.locator("#grokbotTemplateLink")
+            self.assertEqual(link.get_attribute("href"),
+                "https://x.ai/bot/5FSBNs8g-d_JwCxvoa4Vq")
+            self.assertEqual(link.get_attribute("target"),"_blank")
+            self.assertIn("noopener",link.get_attribute("rel"))
+            self.assertIn("不扣本站 AI 點數",suggestion.inner_text())
+
             self.assertNotIn("Cloudflare", page.locator("body").inner_text())
 
             page.locator("#field-brief").fill("一位細心、會找正確職責 Owner 的研發助理")
             page.locator("#localeSelect").select_option("en")
             page.wait_for_function("document.querySelector('h1').textContent.includes('Create an AI teammate')")
             self.assertIn("研發助理", page.locator("#field-brief").input_value())
+            self.assertIn("no Persona Forge AI credits",page.locator(".grokbotSuggestion").inner_text())
             page.locator("#localeSelect").select_option("zh-hans")
             page.wait_for_function("document.querySelector('h1').textContent.includes('创建有个性')")
+            self.assertIn("不扣本站 AI 点数",page.locator(".grokbotSuggestion").inner_text())
             page.locator("#localeSelect").select_option("zh-hant")
             page.wait_for_function("document.querySelector('h1').textContent.includes('建立有個性')")
             page.locator("#advancedMode").click()
@@ -65,6 +77,7 @@ class PersonaBrowserTest(unittest.TestCase):
             page.locator("#field-role").fill("總經理特助")
 
             page.locator("[data-method='prompt']").click()
+            self.assertTrue(page.locator("#grokbotTemplateLink").is_visible())
             page.locator("#mainAction").click()
             page.wait_for_function("document.querySelector('#promptOutput').value.includes('總經理特助')")
             self.assertIn("Grokbot", page.locator("#promptOutput").input_value())

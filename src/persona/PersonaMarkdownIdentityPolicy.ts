@@ -25,13 +25,14 @@ export class PersonaMarkdownIdentityPolicy {
       return markdown;
     }
 
+    // Source/provenance belongs in API metadata, never in the persona
+    // Markdown that gets shown, downloaded or fed back to the character.
     const locale = persona.locale ?? "en";
-    const inferred = !persona.values.age;
     const label = locale === "zh-hant"
-      ? `**年齡：${age} 歲${inferred ? "（AI 建議設定）" : ""}**`
+      ? `**年齡：${age} 歲**`
       : locale === "zh-hans"
-        ? `**年龄：${age} 岁${inferred ? "（AI 建议设定）" : ""}**`
-        : `**Age: ${age}${inferred ? " (AI-proposed character detail)" : ""}**`;
+        ? `**年龄：${age} 岁**`
+        : `**Age: ${age}**`;
     const header = markdown.match(/^(#{1,2}\s+[^\n]+)(\r?\n)/);
     if (header) return markdown.slice(0, header[0].length) + "\n" + label + "\n" + markdown.slice(header[0].length);
     return label + "\n\n" + markdown;

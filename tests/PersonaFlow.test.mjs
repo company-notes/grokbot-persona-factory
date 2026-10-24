@@ -1123,7 +1123,8 @@ test("quick fictional persona without specified age uses the ONE AI chosen age f
   assert.equal(response.status,200);
   const data=await response.json();
   assert.equal(data.resolvedIdentity.age,"31");
-  assert.match(data.markdown,/年齡：31 歲（AI 建議設定）/);
+  assert.match(data.markdown,/年齡：31 歲/);
+  assert.doesNotMatch(data.markdown,/AI 建議設定|AI-proposed character detail/);
   assert.match(data.markdown,/林映真/);
   const imagePrompt=await avatarPromptFromCall(ai.calls.find(x=>x.model.includes("flux")));
   assert.match(imagePrompt,/appears 31 years old/);
@@ -1555,4 +1556,38 @@ test("balanced hosted prompt preserves complete persona and photo identity from 
   assert.match(user,/PERSONA_IDENTITY/);
   assert.equal(ai.calls.filter(c=>!c.model.includes("flux")).length,1);
   assert.equal(ai.calls.filter(c=>c.model.includes("flux")).length,1);
+});
+
+
+test("hosted persona age shown to the character never exposes AI provenance labels (all locales)", async()=>{
+  const app=new WorkerApplication();
+  for(const [locale,ageLabel] of [
+    ["zh-hant",/年齡：33 歲/],
+    ["zh-hans",/年龄：33 岁/],
+    ["en",/Age: 33/],
+  ]){
+    const ai=new FakeAI();
+    const response=await app.fetch(request("/api/v1/drafts",{
+      presetId:"workplace",locale,includeAvatar:true,
+      avatarStyle:"realistic",values:{brief:"An excellent, professional, playful secretary"}
+    },true),env(ai));
+    assert.equal(response.status,200);
+    const result=await response.json();
+    assert.match(result.markdown,ageLabel);
+    assert.doesNotMatch(result.markdown,/AI 建議設定|AI 建议设定|AI-proposed character detail/);
+    assert.equal(result.resolvedIdentity.age,"33");
+    assert.equal(ai.calls.filter(x=>x.model.includes("flux")).length,1);
+  }
+});
+
+test("user-supplied age remains unchanged without explanatory generator note",async()=>{
+  const app=new WorkerApplication(),ai=new FakeAI();
+  const result=await app.fetch(request("/api/v1/drafts",{
+    presetId:"workplace",locale:"zh-hant",includeAvatar:true,avatarStyle:"realistic",
+    values:{brief:"會做事的總經理秘書",age:"28"}
+  },true),env(ai));
+  assert.equal(result.status,200);
+  const output=await result.json();
+  assert.match(output.markdown,/年齡：28 歲/);
+  assert.doesNotMatch(output.markdown,/AI 建議|AI-proposed/);
 });

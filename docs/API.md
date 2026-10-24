@@ -259,3 +259,11 @@ The deterministic, zero-AI `/prompts` endpoint and Grokbot prompt continue using
 The Workers AI orchestration uses `BoundedAIBinding` to limit the time a single text/image/visual-review AI call can occupy the request (38 seconds for Qwen3, 35 seconds for the fallback text model, 48 seconds for an image call and 12 seconds for image review), with an overall request AI budget of **140 seconds**. When a call times out, text and image fallbacks are attempted only within the remaining time. The browser imposes a **155-second** total request deadline and exposes a cancel button in its loading mask. A deadline yields a visible error instead of waiting indefinitely.
 
 **Important cost limitation:** cloud AI bindings may not honor transport-level cancellation; timeouts and the browser cancel button end the wait but cannot guarantee the model stops executing or that Workers AI usage is refunded. Site credits continue to be reserved for attempted calls. The web UI makes this explicit after cancellation. These limits are practical first-release protections, not a measured SLA.
+
+## Dedicated Grokbot creation assistant (site UI)
+
+The public builder links to the user-provided Grokbot persona assistant template at `https://x.ai/bot/5FSBNs8g-d_JwCxvoa4Vq`, directly beside the Generate / Prompt-only choice. The link opens a separate tab and **does not call Persona Forge Workers AI or consume site credits**. Grokbot's own login, account entitlements and usage limits remain independent. The site still offers its existing metered AI generation and free, deterministic prompt/ZIP endpoints without changes.
+
+## Clean persona artifacts
+
+When the AI selects an unspecified fictional age, `PersonaMarkdownIdentityPolicy` may add a simple age label to the Markdown, but never marks it `AI-proposed` or `AI 建議設定`. Such generation provenance is not character identity and must not leak into persona Markdown, ZIP files or future bot prompts. The API `resolvedIdentity` carries the chosen age separately. Hosted authoring instructions also forbid editorial notes or creator asides inside the final persona.
