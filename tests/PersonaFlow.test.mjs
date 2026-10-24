@@ -33,9 +33,9 @@ class FakeAI {
     const markdown = "# 小晴\\n\\n## 核心定位\\n總經理特助，重視職責和溝通。";
     if (input?.messages?.[0]?.content?.includes("MANDATORY API TRANSPORT FORMAT OVERRIDE")) {
       const user = input.messages[1].content;
-      const gender = /Gender \\/ 性別：male/.test(user) ? "male" :
-        /Gender \\/ 性別：nonbinary/.test(user) ? "nonbinary" : "female";
-      const age = user.match(/Age \\/ 年齡：([^\\n]+)/)?.[1] || "";
+      const gender = user.includes("Gender / 性別：male") ? "male" :
+        user.includes("Gender / 性別：nonbinary") ? "nonbinary" : "female";
+      const age = user.split("Age / 年齡：")[1]?.split("\\n")[0] || "";
       return { response: JSON.stringify({
         markdown,
         resolvedIdentity: {
