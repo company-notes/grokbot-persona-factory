@@ -1171,3 +1171,73 @@ test("Grokbot prompt asks the local AI to settle age in both Markdown and card",
   assert.match(prompt,/resolvedIdentity/);
   assert.equal(ai.calls.length,0);
 });
+
+test("27-year-old portrait receives strong but natural young-adult age direction", async()=>{
+  const ai=new FakeAI(),app=new WorkerApplication();
+  const persona={
+    presetId:"workplace",locale:"zh-hant",includeAvatar:true,avatarStyle:"realistic",
+    values:{name:"林曉薇",age:"27",gender:"女性",appearance:"大波浪捲髮，商務套裝",role:"總經理秘書"},
+  };
+  const res=await app.fetch(request("/api/v1/drafts",persona,true),env(ai));
+  assert.equal(res.status,200);
+  const data=await res.json();
+  assert.equal(data.resolvedIdentity.age,"27");
+  const prompt=await avatarPromptFromCall(ai.calls.find(x=>x.model.includes("flux")));
+  assert.match(prompt,/AGE CASTING PRIORITY: the subject is specifically 27 years old/);
+  assert.match(prompt,/young adult in their twenties/);
+  assert.match(prompt,/professional clothing and a confident attitude must not make the face appear like a substantially older senior executive/);
+  assert.match(prompt,/soft, even photographic lighting/);
+  assert.match(prompt,/大波浪捲髮/);
+  assert.ok(prompt.indexOf("AGE CASTING PRIORITY")<prompt.indexOf("Photorealistic corporate headshot"));
+});
+
+test("localized completed-avatar prompt carries age casting but never invokes Workers AI",async()=>{
+  const app=new WorkerApplication(),ai=new FakeAI();
+  const persona={presetId:"workplace",locale:"zh-hant",includeAvatar:true,avatarStyle:"realistic",
+    values:{brief:"27 歲的秘書"}};
+  const res=await app.fetch(request("/api/v1/avatar-prompts",{
+    persona,markdown:"# 林曉薇\n\n27 歲女性秘書。",
+    resolvedIdentity:{gender:"female",age:"27",appearance:"大波浪捲髮",role:"總經理秘書"},
+  }),env(ai));
+  assert.equal(res.status,200);
+  const data=await res.json();
+  assert.match(data.avatarPrompt,/年齡視覺重點：27 歲/);
+  assert.match(data.imageModelPrompt,/AGE CASTING PRIORITY/);
+  assert.equal(ai.calls.length,0);
+});
+
+test("older adult avatar never inherits twenties-only age casting",async()=>{
+  const ai=new FakeAI(),app=new WorkerApplication();
+  const res=await app.fetch(request("/api/v1/drafts",{
+    presetId:"workplace",locale:"zh-hant",includeAvatar:true,avatarStyle:"realistic",
+    values:{name:"林雅雯",gender:"女性",age:"52",appearance:"自然面容，深棕髮",role:"人事行政主管"},
+  },true),env(ai));
+  assert.equal(res.status,200);
+  const p=await avatarPromptFromCall(ai.calls.find(x=>x.model.includes("flux")));
+  assert.match(p,/appears 52 years old/);
+  assert.doesNotMatch(p,/AGE CASTING PRIORITY|young adult in their twenties/);
+});
+
+test("visual reviewer flags clear apparent-age mismatch for character aged 27",async()=>{
+  class ReviewerAI extends FakeAI {
+    async run(model,input){
+      if(model.includes("moondream")){
+        this.calls.push({model,input});
+        return {answer:"PASS"};
+      }
+      return super.run(model,input);
+    }
+  }
+  const ai=new ReviewerAI(),settings=env(ai);
+  settings.AVATAR_VISUAL_REVIEW="true";
+  const res=await new WorkerApplication().fetch(request("/api/v1/drafts",{
+    presetId:"workplace",locale:"zh-hant",includeAvatar:true,avatarStyle:"realistic",
+    values:{name:"林曉薇",gender:"女性",age:"27",role:"秘書"},
+  },true),settings);
+  assert.equal(res.status,200);
+  const questions=ai.calls.filter(x=>x.model.includes("moondream")).map(x=>x.input.question);
+  assert.equal(questions.length,1);
+  assert.match(questions[0],/expected apparent age 27/);
+  assert.match(questions[0],/Do not mark PASS when the portrait CLEARLY depicts someone who looks substantially older/);
+  assert.match(questions[0],/choose UNCERTAIN/);
+});

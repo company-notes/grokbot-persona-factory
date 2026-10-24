@@ -1,5 +1,6 @@
 import type { AiBinding } from "../Types.js";
 import { PersonaVisualIdentity } from "../persona/PersonaVisualIdentity.js";
+import { AvatarAgeGuidance } from "./AvatarAgeGuidance.js";
 
 export type AvatarReviewOutcome = "pass" | "mismatch" | "uncertain";
 
@@ -19,7 +20,8 @@ export class AvatarVisualReviewer {
           : "exactly one adult person";
     const checks = [
       `The portrait must show exactly ${gender} and only one face.`,
-      identity.age ? `Approximate apparent adult age: ${identity.age}; don't demand exact age, only flag large visual mismatches.` : "",
+      identity.age ? `Approximate apparent adult age: ${identity.age}; evaluate broadly and cautiously.` : "",
+      AvatarAgeGuidance.forReview(identity.age),
       identity.appearance ? `Specific visual appearance/clothes: ${identity.appearance}.` : "",
       identity.role ? `Business context: ${identity.role}.` : "",
       `Overall demeanor: ${identity.visualTone}.`,

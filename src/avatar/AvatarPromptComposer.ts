@@ -3,6 +3,7 @@ import { AvatarStyles } from "./AvatarStyles.js";
 import { PersonaVisualIdentity } from "../persona/PersonaVisualIdentity.js";
 import type { Locale } from "../i18n/Localization.js";
 import { AvatarRegionalContext } from "./AvatarRegionalContext.js";
+import { AvatarAgeGuidance } from "./AvatarAgeGuidance.js";
 
 /**
  * Builds an English, image-model-oriented prompt independently of the
@@ -18,6 +19,7 @@ export class AvatarPromptComposer {
     const style = this.styles.require(persona.avatarStyle);
     const fixed = [
       identity.englishAnchor(),
+      ...(style === "realistic" ? [AvatarAgeGuidance.forImage(identity.age)] : []),
       this.styles.describe(style, "en"),
       "One person only; head-and-shoulders portrait, exactly one face, centered square composition, clean natural background. Respect the same individual described in the Markdown.",
       ...(style === "realistic" ? [
@@ -45,6 +47,7 @@ export class AvatarPromptComposer {
     })[locale];
     return [
       identity.localizedImageAnchor(locale),
+      ...(this.styles.require(persona.avatarStyle) === "realistic" ? [AvatarAgeGuidance.localized(identity.age, locale)] : []),
       style,regional,copy,
       identity.name ? `Name / 姓名：${identity.name}` : "",
       identity.appearance ? `Appearance / 外貌：${identity.appearance}` : "",

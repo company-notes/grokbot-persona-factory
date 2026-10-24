@@ -224,3 +224,20 @@ take longer with photorealistic generation and visual review. No unnecessary
 extra model call is used when the initial text model returns a valid Markdown
 and identity card. `/prompts`, `/avatar-prompts`, and `/packages` remain
 zero-Workers-AI operations.
+
+### Apparent age in realistic portraits
+
+For **realistic portraits with a settled age of 18–29**, both the hosted FLUX
+prompt and the localized external `/avatar-prompts` prompt now emphasize a
+believable **young adult in their twenties**, natural facial age cues and
+soft photographic lighting. Professional clothing and a senior-facing role
+must not add decades of apparent age. Older characters retain their specified
+age and never receive the young-adult constraints. No age is guessed
+from nationality, attractiveness or job title by this image component.
+
+When hosted visual review is enabled, the reviewer is explicitly instructed
+to flag a **clear** age-decade mismatch and return `UNCERTAIN` rather than
+claiming success for borderline age impressions. Apparent age is subjective;
+this reduces mismatches but is **not** a measured age classifier or a guarantee
+that every generated portrait looks exactly its written age. Review remains
+one extra AI call and at most one image retry.
