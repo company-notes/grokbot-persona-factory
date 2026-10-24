@@ -728,7 +728,7 @@ test("zh-hant portrait uses a Taiwanese visual default without inventing nationa
   assert.equal(promptsRes.status, 200);
   const prompts = await promptsRes.json();
   assert.match(prompts.avatarPrompt, /當代臺灣職場人物/);
-  assert.match(prompts.avatarPrompt, /這不表示人物已確認具有臺灣國籍/);
+  assert.match(prompts.avatarPrompt, /不表示人物已確認具有臺灣國籍/);
   assert.match(prompts.grokbotPrompt, /僅供圖像使用/);
   assert.doesNotMatch(prompts.userPrompt, /臺灣國籍/);
   assert.equal(ai.calls.length, 0);
