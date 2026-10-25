@@ -51,9 +51,8 @@ class PersonaBrowserTest(unittest.TestCase):
             self.assertIn("AI 夥伴", page.locator("h1").inner_text())
             # The external assistant is discoverable without using site AI.
             suggestion=page.locator(".grokbotSuggestion")
-            self.assertFalse(suggestion.is_visible())
-            page.locator("[data-method='prompt']").click()
             self.assertTrue(suggestion.is_visible())
+            self.assertEqual(suggestion.locator("xpath=preceding-sibling::*[1]").get_attribute("data-method"), "prompt")
             link=page.locator("#grokbotTemplateLink")
             self.assertEqual(link.get_attribute("href"),
                 "https://x.ai/bot/5FSBNs8g-d_JwCxvoa4Vq")
@@ -78,6 +77,7 @@ class PersonaBrowserTest(unittest.TestCase):
             page.locator("#field-department").fill("總經理室")
             page.locator("#field-role").fill("總經理特助")
 
+            page.locator("[data-method='prompt']").click()
             self.assertTrue(page.locator("#grokbotTemplateLink").is_visible())
             page.locator("#mainAction").click()
             page.wait_for_function("document.querySelector('#promptOutput').value.includes('總經理特助')")
@@ -93,7 +93,7 @@ class PersonaBrowserTest(unittest.TestCase):
                 self.assertIn("小晴", archive.read("persona.md").decode("utf-8"))
 
             page.locator("[data-method='worker']").click()
-            self.assertFalse(suggestion.is_visible())
+            self.assertTrue(suggestion.is_visible())
             page.locator("#includeAvatar").uncheck(force=True)
             page.locator("#mainAction").click()
             page.wait_for_function("document.querySelector('#draftMarkdown').value.includes('模擬人設')")
