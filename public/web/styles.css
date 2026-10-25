@@ -62,7 +62,7 @@ body.is-generating{overflow:hidden}
 .loadingCancel:hover,.loadingCancel:focus-visible{background:#ebe1ff;outline-offset:2px}
 
 /* Optional external authoring path. It is separate from the metered site action. */
-.grokbotSuggestion{display:flex;align-items:flex-start;gap:10px;background:#f7f5ff;border:1px solid #e7e1fc;border-radius:11px;padding:13px;margin:1px 0 18px}
+.grokbotSuggestion{display:flex;align-items:flex-start;gap:10px;background:#f7f5ff;border:1px solid #e7e1fc;border-radius:11px;padding:13px;margin:12px 0}
 .grokbotSuggestionIcon{flex:0 0 30px;height:30px;display:grid;place-items:center;border-radius:9px;background:#e9e2ff;color:#7855d4;font-size:18px}
 .grokbotSuggestionBody{min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:5px}
 .grokbotSuggestionBody strong{color:#44336e;font-size:12px;font-weight:750;line-height:1.5}
