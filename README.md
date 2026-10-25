@@ -2,11 +2,12 @@
 
 Persona Forge creates reusable, practical AI personalities for Grokbot, AI workplace teammates, managers, and assistants. Creative sets are optional; responsibilities, decision boundaries, speaking style, and realistic workflows are its primary focus.
 
-## v0.3 — public AI, daily free quota, avatar art styles
+## v0.4 — public AI, daily free quota, consistent visual identities
 
 - **The visitor does not need an API key.** The deployed Worker accesses text and image models through its `AI` binding, which is configured server-side. Nothing is pasted into the browser or disclosed to users.
 - **Site-wide daily generation limit:** a SQLite-backed Durable Object stores an atomic allowance ledger. The default is `PUBLIC_DAILY_CREDITS=150`. A text generation or revision costs one *site credit*; a new avatar costs two additional credits (3 total). The reset is **00:00 UTC**. A site credit is **not** a Cloudflare neuron or billing unit.
-- **When credits are exhausted:** AI generation stops (HTTP 429 `QUOTA_EXHAUSTED`); users can still fetch a simple Grokbot-ready prompt, use their own Grokbot to generate Markdown, and package the result. No personal Cloudflare AI token requested.
+- **When credits are exhausted:** AI generation stops (HTTP 429 `QUOTA_EXHAUSTED`); prompt-only generation and the separate ZIP packaging API remain available without site AI credits. The prompt-only workflow links to a dedicated Grokbot persona assistant. No personal Cloudflare AI token requested.
+- **Visual identity consistency:** the text model resolves a structured character identity before the matching avatar prompt is composed. Explicit user facts take priority; optional visual review can flag mismatches.
 - **Avatar styles:** original cartoon (default), photorealistic, pencil sketch, anime, watercolor, stylized 3D, pixel art. Art styles change only avatar rendering prompts; they do not change the persona's working behavior.
 - **Languages:** English, Traditional Chinese, Simplified Chinese for the page, forms, user-facing prompts and persona-output instructions. To improve image quality, the model receives a separate English composition prompt while the user-facing avatar prompt remains localized.
 - **Presets:** workplace teammate/manager, personal assistant, original character and interactive NPC; workplace roles stay separated from stable identity and short-lived projects.
@@ -15,7 +16,7 @@ Persona Forge creates reusable, practical AI personalities for Grokbot, AI workp
 
 ## Local setup and deploy
 
-Requires Node.js 22+ and a Cloudflare account for deployment.
+Requires Node.js 22+ for local development and a Cloudflare account for deployment. CI deployment currently uses Node.js 26.12.1+.
 
 ```bash
 npm ci
@@ -43,7 +44,7 @@ Setting `PUBLIC_DAILY_CREDITS` to `0` turns off paid inference without blocking 
 
 **Cloudflare billing:** Cloudflare Workers AI currently includes 10,000 free Neurons/day per account, with paid-plan overage ($0.011 per 1,000 Neurons above that allocation). Based on one dashboard example showing approximately 275.55 text and 499.20 image neurons, 50 combined jobs consume roughly 38,738 Neurons/day, of which roughly 28,738 would be above the free allocation ($0.32/day when usage elsewhere is zero). These are estimates, not a hard budget limit. On a Workers Free plan Cloudflare blocks model calls once the 10,000-Neuron shared daily allocation is depleted. This site cap does NOT create more Cloudflare free inference.
 
- credit limits here count requests at an intentionally low site-defined cap, *not exact model charges*. Set account-level usage/budget alarms, WAF/Turnstile protections if abuse increases, and check the real account's AI usage after deployment. Inference is attempted only after the quota reservation; an attempted request consumes its assigned site credits even if the model returns an error.
+Site credit limits here count requests at an intentionally low site-defined cap, *not exact model charges*. Set account-level usage/budget alarms, WAF/Turnstile protections if abuse increases, and check the real account's AI usage after deployment. Inference is attempted only after the quota reservation; an attempted request consumes its assigned site credits even if the model returns an error.
 
 ## API resources
 
@@ -53,6 +54,7 @@ Setting `PUBLIC_DAILY_CREDITS` to `0` turns off paid inference without blocking 
 | GET | `/api/v1/presets?locale=en` | none | yes |
 | GET | `/api/v1/quota` | none | yes |
 | POST | `/api/v1/prompts` | none | yes |
+| POST | `/api/v1/avatar-prompts` | none | yes |
 | POST | `/api/v1/drafts` | text, optional image | yes, consumes credits |
 | POST | `/api/v1/personas` | text, optional image | yes, consumes credits |
 | POST | `/api/v1/packages` | none | yes |
@@ -77,7 +79,7 @@ public/web/     browser UI, translation client, form, API client, result preview
 
 Follow `CODE_PRINCIPLES.md` and `TESTING.md`: DRY, object-oriented state ownership, explicit concerns, no monolithic modules, and real flow tests. Test the API locally with `npm test` and the full browser flow with `npm run test:browser`. The browser E2E suite requires a working Chromium executable and permission to access localhost. The Cloudflare AI binding itself must be smoke-tested on a real Cloudflare staging deployment; in unit tests only model requests are substituted.
 
-GitHub Actions automatically tests and deploys on every push to `main` (including merges); `workflow_dispatch` also supports a manual redeploy. The production deploy is serialized to avoid concurrent releases. Secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are configured only in the repository Actions settings. Suggested repository: `company-notes/grokbot-persona-factory`.
+GitHub Actions runs typechecking, API tests, and real-browser E2E tests before deploying on every push to `main` (including merges). Failed tests block deployment; `workflow_dispatch` also supports a manual redeploy. The production deploy is serialized to avoid concurrent releases. Secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are configured only in the repository Actions settings. Suggested repository: `company-notes/grokbot-persona-factory`.
 
 ### Example pricing and choosing an allowance
 
