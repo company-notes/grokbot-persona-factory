@@ -76,6 +76,12 @@
               <button class="methodOption" data-method="prompt" type="button" aria-pressed="false">
                 <span class="methodIcon">⌘</span><span class="methodContent"><strong data-i18n="method.prompt">只產生 Prompt</strong><small data-i18n="method.promptNote">由 Grokbot 或自備 AI 產生</small></span><span class="methodRadio"></span>
               </button>
+              <div class="grokbotSuggestion">
+                <div class="grokbotSuggestionBody">
+                  <p data-i18n="grokbot.suggestionBody">試試專用 Grokbot 人設助理，在 Grokbot 建立不扣本站 AI 點數。</p>
+                  <a id="grokbotTemplateLink" href="https://x.ai/bot/5FSBNs8g-d_JwCxvoa4Vq" target="_blank" rel="noopener noreferrer" data-i18n="grokbot.suggestionAction">開啟 Grokbot 助理範本 ↗</a>
+                </div>
+              </div>
               <div class="avatarStylePanel">
                 <label for="detailLevel" class="apiLabel" data-i18n="form.detailLabel">人設詳細度</label>
                 <select id="detailLevel">
@@ -131,12 +137,6 @@
             <section id="promptResult" class="panel promptResult hidden">
               <div class="smallHeader"><h3 data-i18n="prompt.title">給你的 AI 使用的 Prompt</h3><span class="tag" data-i18n="prompt.external">外部 AI 模式</span></div>
               <p data-i18n="prompt.note">可直接複製給 Bot；API 會分開回傳 systemPrompt、userPrompt 與 avatarPrompt。</p>
-              <div class="grokbotSuggestion">
-                <div class="grokbotSuggestionBody">
-                  <p data-i18n="grokbot.suggestionBody">試試專用 Grokbot 人設助理，在 Grokbot 建立不扣本站 AI 點數。</p>
-                  <a id="grokbotTemplateLink" href="https://x.ai/bot/5FSBNs8g-d_JwCxvoa4Vq" target="_blank" rel="noopener noreferrer" data-i18n="grokbot.suggestionAction">開啟 Grokbot 助理範本 ↗</a>
-                </div>
-              </div>
               <textarea id="promptOutput" rows="12" readonly aria-label="Generated prompts"></textarea>
               <button id="copyPrompt" type="button" class="secondaryButton" data-i18n="prompt.copy">複製給 Grokbot</button>
               <hr>
